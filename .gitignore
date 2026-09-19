@@ -1,0 +1,33 @@
+# Third-party source snapshots and generated application data
+/upstream/
+/var/
+
+# Dependencies and build output
+**/node_modules/
+**/dist/
+**/build/
+**/.next/
+**/.vite/
+**/coverage/
+**/.venv/
+**/venv/
+**/*.egg-info/
+
+# Python caches and test artifacts
+**/__pycache__/
+*.py[cod]
+**/.pytest_cache/
+**/.mypy_cache/
+**/.ruff_cache/
+
+# Local configuration and credentials
+**/.env
+**/.env.*
+!**/.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Operating-system metadata
+.DS_Store

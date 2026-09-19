@@ -1,0 +1,276 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>RepoLens · 工作台视觉样稿</title>
+  <style>
+    :root {
+      --page: #f3f5f2;
+      --paper: #ffffff;
+      --ink: #172b2a;
+      --muted: #667774;
+      --line: #dfe7e2;
+      --green: #0b745e;
+      --green-dark: #075d4d;
+      --green-soft: #e6f5ee;
+      --amber: #a66b13;
+      --amber-soft: #fff4dc;
+      --shadow: 0 18px 60px rgba(20, 55, 44, .055);
+    }
+    * { box-sizing: border-box; }
+    html { scroll-behavior: smooth; }
+    body { margin: 0; background: var(--page); color: var(--ink); font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "PingFang SC", "Microsoft YaHei", sans-serif; }
+    button, input, select { font: inherit; }
+    button { cursor: pointer; }
+    .topbar { height: 72px; border-bottom: 1px solid var(--line); background: rgba(255,255,255,.92); display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 0 42px; }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 800; letter-spacing: -.04em; font-size: 21px; }
+    .brand-mark { width: 31px; height: 31px; border: 7px solid var(--green); border-radius: 50%; display: inline-block; position: relative; }
+    .brand-mark:after { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #91d3ac; position: absolute; right: -7px; top: -7px; }
+    .top-actions { display: flex; align-items: center; gap: 20px; color: var(--muted); font-size: 13px; }
+    .top-link { border: 0; background: transparent; color: var(--ink); font-weight: 650; padding: 9px 0; }
+    button:focus-visible, a:focus-visible, select:focus-visible { outline: 3px solid #4baf90; outline-offset: 3px; }
+    .draft { padding: 7px 11px; border-radius: 999px; background: var(--amber-soft); color: var(--amber); font-size: 12px; font-weight: 700; }
+    .wrap { max-width: 1510px; padding: 36px 38px 66px; margin: 0 auto; }
+    .eyebrow { font-size: 11px; text-transform: uppercase; letter-spacing: .15em; color: var(--green); font-weight: 800; }
+    .page-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 22px; margin-bottom: 24px; }
+    h1 { font-size: clamp(28px, 3vw, 39px); letter-spacing: -.055em; line-height: 1.13; margin: 10px 0 10px; }
+    .lede { margin: 0; color: var(--muted); font-size: 14px; line-height: 1.7; }
+    .source-pill { display: flex; gap: 9px; align-items: center; padding: 10px 14px; border: 1px solid var(--line); background: var(--paper); border-radius: 999px; color: var(--muted); font-size: 12px; white-space: nowrap; box-shadow: var(--shadow); }
+    .source-pill strong { color: var(--ink); font-weight: 700; }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: #25a884; }
+    .mobile-jump { display: none; }
+    .workspace { display: grid; grid-template-columns: 235px minmax(0, 1fr) 318px; gap: 16px; align-items: start; }
+    .panel { background: var(--paper); border: 1px solid var(--line); border-radius: 19px; box-shadow: var(--shadow); overflow: hidden; }
+    .panel-pad { padding: 22px; }
+    .side-header, .run-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 22px; }
+    .small-title { font-size: 13px; font-weight: 800; letter-spacing: -.01em; }
+    .count { border-radius: 7px; background: #f0f4f1; color: var(--muted); padding: 4px 7px; font-size: 11px; }
+    .mini-label { color: #84938f; font-size: 10px; font-weight: 800; letter-spacing: .12em; margin: 16px 0 8px; text-transform: uppercase; }
+    .tree-item { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; color: #445a55; border: 1px solid transparent; border-radius: 10px; padding: 10px 10px; background: transparent; font-size: 13px; margin: 3px 0; }
+    .tree-item:hover { background: #f4f8f5; }
+    .tree-item.active { background: var(--green-soft); border-color: #cce9d9; color: var(--green-dark); font-weight: 750; }
+    .tree-item .icon { width: 18px; display: inline-block; font-size: 14px; color: #7aa390; }
+    .tree-item.active .icon { color: var(--green); }
+    .branch { margin-left: 12px; padding-left: 10px; border-left: 1px solid #e5ece7; }
+    .side-footer { border-top: 1px solid var(--line); background: #fafcf9; padding: 16px 22px; font-size: 11px; line-height: 1.6; color: var(--muted); }
+    .main-panel { min-height: 650px; }
+    .main-top { padding: 25px 29px 22px; border-bottom: 1px solid var(--line); }
+    .breadcrumbs { color: #7b8c87; font-size: 12px; margin-bottom: 16px; }
+    .breadcrumbs strong { color: var(--ink); }
+    .folder-title-row { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+    .folder-title-row h2 { font-size: clamp(25px, 2vw, 32px); margin: 0; letter-spacing: -.05em; }
+    .tag { border-radius: 999px; padding: 6px 9px; font-size: 10px; font-weight: 750; background: var(--green-soft); color: var(--green-dark); }
+    .tag.amber { background: var(--amber-soft); color: var(--amber); }
+    .folder-description { margin: 14px 0 0; color: #546964; line-height: 1.65; font-size: 14px; max-width: 60ch; }
+    .main-content { padding: 22px 29px 31px; }
+    .section-heading { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin: 4px 0 14px; }
+    .section-heading h3 { margin: 0; font-size: 14px; letter-spacing: -.02em; }
+    .section-note { font-size: 11px; color: #697e77; }
+    .flow-grid { display: flex; gap: 7px; }
+    .flow-card { flex: 1; min-width: 0; min-height: 72px; padding: 12px 9px; border: 1px solid var(--line); background: #fbfcfa; border-radius: 11px; position: relative; }
+    .flow-card:not(:last-child):after { content: "→"; position: absolute; right: -10px; top: 26px; z-index: 1; font-size: 12px; font-weight: 800; color: var(--green); }
+    .flow-num { font-size: 10px; color: #55786d; font-weight: 800; letter-spacing: .1em; }
+    .flow-name { font-size: 11px; font-weight: 750; margin-top: 7px; line-height: 1.4; }
+    .divider { height: 1px; background: var(--line); margin: 25px 0 22px; }
+    .file-card { display: flex; justify-content: space-between; gap: 15px; align-items: center; padding: 13px 14px; border: 1px solid var(--line); border-radius: 11px; margin-bottom: 8px; background: #fff; }
+    .file-card b { font: 700 12px ui-monospace, SFMono-Regular, Menlo, monospace; color: #2c4741; }
+    .file-card small { color: var(--muted); font-size: 11px; text-align: right; }
+    .evidence-card { background: #f4f8f5; border: 1px solid #dceae0; border-radius: 12px; padding: 15px 16px; margin-top: 18px; }
+    .evidence-card b { display: block; font-size: 12px; color: #275844; margin-bottom: 6px; }
+    .evidence-card p { margin: 0; color: #557068; font-size: 12px; line-height: 1.6; }
+    .run-panel { position: sticky; top: 20px; }
+    .run-panel .panel-pad { padding: 22px; }
+    .run-badge { font-size: 10px; font-weight: 800; letter-spacing: .06em; padding: 6px 8px; border-radius: 7px; background: #f3f6f3; color: #61776f; }
+    .run-title { margin: 4px 0 6px; font-size: 20px; letter-spacing: -.045em; }
+    .run-subtitle { color: var(--muted); font-size: 12px; line-height: 1.6; margin: 0 0 22px; }
+    .field { margin: 0 0 18px; }
+    .field label { display: block; color: #5b7069; font-weight: 700; font-size: 11px; margin-bottom: 8px; }
+    .field .value, .field select { display: block; width: 100%; background: #fbfcfb; border: 1px solid #dce6df; border-radius: 9px; padding: 11px 12px; color: #2a4540; font-size: 12px; }
+    .field .value { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .run-button { width: 100%; background: #d9e9e0; color: #345a4a; border: 1px solid #c8dfd2; border-radius: 10px; padding: 13px; font-size: 12px; font-weight: 800; cursor: not-allowed; }
+    .run-foot { margin: 11px 0 0; font-size: 11px; line-height: 1.55; color: #8a9a95; text-align: center; }
+    .status { border-top: 1px solid var(--line); background: #fbfcfa; padding: 18px 22px; }
+    .status-line { display: flex; align-items: center; gap: 9px; font-size: 12px; color: #627a71; }
+    .status-line span { width: 7px; height: 7px; border-radius: 50%; background: #d8a854; }
+    .status small { display: block; margin: 7px 0 0 16px; color: #93a19b; line-height: 1.5; }
+    .footnote { color: #82918a; font-size: 11px; margin-top: 20px; line-height: 1.6; }
+    .home { display: none; min-height: calc(100vh - 72px); background: radial-gradient(circle at 78% 20%, #e3f4e8 0, transparent 31%), var(--page); padding: 74px 24px; }
+    .home-inner { max-width: 790px; margin: 0 auto; text-align: center; }
+    .home h1 { font-size: clamp(42px, 6vw, 64px); margin: 16px 0 18px; letter-spacing: -.075em; }
+    .home .lede { max-width: 590px; margin: 0 auto; font-size: 17px; }
+    .input-label { display: block; max-width: 680px; margin: 40px auto 9px; text-align: left; color: #61776f; font-size: 12px; font-weight: 750; }
+    .input-shell { margin: 0 auto 11px; max-width: 680px; display: flex; gap: 9px; padding: 8px; background: #fff; border: 1px solid #d9e4dc; border-radius: 15px; box-shadow: 0 19px 48px rgba(22, 72, 49, .08); }
+    .input-shell input { flex: 1; min-width: 0; border: 0; outline: 0; padding: 0 15px; font-size: 14px; background: transparent; color: var(--ink); }
+    .input-shell button { background: #e3ece6; color: #54746a; border: 0; padding: 16px 22px; border-radius: 10px; font-size: 13px; font-weight: 800; cursor: not-allowed; }
+    .example { border: 1px solid var(--green-dark); background: var(--green); color: #fff; padding: 13px 20px; border-radius: 11px; font-size: 13px; font-weight: 750; box-shadow: 0 11px 24px rgba(5, 99, 77, .16); }
+    .example:hover { background: var(--green-dark); }
+    .home-tip { color: #687d75; font-size: 12px; line-height: 1.6; margin: 8px auto 24px; max-width: 680px; text-align: left; }
+    .local-preview { border: 0; background: transparent; color: #82958e; padding: 0; margin: 0 0 2px; font-size: 12px; cursor: not-allowed; text-decoration: underline; text-underline-offset: 3px; }
+    .home-choice { display: flex; align-items: center; justify-content: center; gap: 18px; margin-top: 20px; flex-wrap: wrap; }
+    .home-choice span { color: #526a60; font-size: 13px; font-weight: 650; }
+    .home-features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 13px; margin-top: 62px; text-align: left; }
+    .home-features article { border: 1px solid var(--line); border-radius: 15px; background: #fff; padding: 20px; }
+    .home-features b { font-size: 14px; }
+    .home-features p { color: var(--muted); font-size: 12px; line-height: 1.6; margin: 9px 0 0; }
+    body.show-home .home { display: block; }
+    body.show-home .wrap { display: none; }
+    body.show-home .mobile-jump { display: none; }
+    @media (max-width: 1160px) { .workspace { grid-template-columns: 215px minmax(0, 1fr); } .run-panel { grid-column: 2; position: static; } .flow-grid { display: grid; grid-template-columns: repeat(3, 1fr); } .flow-card:after { display: none; } }
+    @media (max-width: 760px) {
+      .topbar { padding: 0 18px; } .brand { font-size: 19px; } .top-actions .draft { display: none; } .top-link { font-size: 12px; }
+      .wrap { padding: 22px 15px 45px; } .page-heading { display: block; } .source-pill { display: inline-flex; max-width: 100%; white-space: normal; margin-top: 14px; }
+      .mobile-jump { position: sticky; top: 0; z-index: 5; display: flex; gap: 6px; justify-content: center; padding: 9px 15px; background: rgba(243,245,242,.97); border-bottom: 1px solid var(--line); }
+      .mobile-jump a { flex: 1; max-width: 150px; text-align: center; text-decoration: none; border: 1px solid #d7e5dc; border-radius: 9px; padding: 9px 7px; background: var(--paper); color: var(--green-dark); font-size: 12px; font-weight: 700; }
+      .workspace { display: block; min-width: 0; } .workspace > .panel { width: 100%; min-width: 0; margin-bottom: 14px; scroll-margin-top: 66px; }
+      .workspace .panel:first-child .panel-pad { padding: 17px 20px; } .workspace .panel:first-child .tree-item { padding: 6px 9px; } .workspace .panel:first-child .side-header { margin-bottom: 10px; } .side-footer { display: none; }
+      .file-card { align-items: flex-start; flex-direction: column; } .file-card b { overflow-wrap: anywhere; }
+      .flow-grid { grid-template-columns: repeat(2, 1fr); } .main-top, .main-content { padding-left: 20px; padding-right: 20px; }
+      .home { padding: 54px 16px; } .home-choice { display: block; } .home-choice span { display: block; margin-bottom: 12px; }
+      .input-shell { display: block; } .input-shell input { min-height: 48px; width: 100%; } .input-shell button { width: 100%; }
+      .home-features { grid-template-columns: 1fr; gap: 9px; margin-top: 45px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="brand-mark" aria-hidden="true"></span>RepoLens</div>
+    <div class="top-actions"><span class="draft">M0 视觉样稿 · 非真实分析</span><button class="top-link" id="page-switch" type="button">查看输入页 ↗</button></div>
+  </header>
+
+  <section class="home" aria-label="输入页样稿">
+    <div class="home-inner">
+      <div class="eyebrow">UNDERSTAND · EXPLORE · RUN</div>
+      <h1>打开一份仓库，<br>先看懂它。</h1>
+      <p class="lede">从文件夹的作用开始，找到真正的入口。需要动手时，在同一页面填写参数、运行并查看结果。</p>
+      <label class="input-label" for="github-preview">GitHub 仓库地址 · M4 接入</label>
+      <div class="input-shell"><input id="github-preview" placeholder="粘贴 GitHub 仓库地址，例如 owner/repo" disabled /><button type="button" disabled>尚未开放</button></div>
+      <p class="home-tip">地址输入与扫描是后续能力。现在可先查看 PocketFlow 的项目工作台样稿。</p>
+      <button class="local-preview" type="button" disabled>选择本地文件夹 · M2 接入</button>
+      <div class="home-choice"><span>从示例开始</span><button class="example" id="open-example" type="button">进入 PocketFlow 示例工作台 ↗</button></div>
+      <div class="home-features">
+        <article><b>01 / 文件夹地图</b><p>先看结构和职责，再决定要读哪一个文件。</p></article>
+        <article><b>02 / 可追溯解释</b><p>说明附带源码位置，区分事实、推断和运行验证。</p></article>
+        <article><b>03 / 页面内运行</b><p>按表单操作后台，查看过程、日志和最终产物。</p></article>
+      </div>
+    </div>
+  </section>
+
+  <main class="wrap">
+    <div class="page-heading">
+      <div><div class="eyebrow">PROJECT WORKSPACE / DEMO</div><h1>PocketFlow 项目地图</h1><p class="lede">先看文件夹负责什么，再找到源码依据与运行入口。</p></div>
+      <div class="source-pill"><span class="dot"></span><strong>本地样本</strong><span>· 05b24cb</span></div>
+    </div>
+
+    <nav class="mobile-jump" aria-label="工作台区域导航"><a href="#folder-map">文件夹</a><a href="#folder-detail">解释</a><a href="#run-panel">运行窗口</a></nav>
+
+    <div class="workspace">
+      <aside class="panel" id="folder-map">
+        <div class="panel-pad">
+          <div class="side-header"><span class="small-title">文件夹地图</span><span class="count">示例</span></div>
+          <div class="mini-label">项目结构</div>
+          <button class="tree-item" data-folder="root" type="button" aria-pressed="false"><span class="icon">◈</span>项目总览</button>
+          <div class="branch">
+            <button class="tree-item active" data-folder="utils" type="button" aria-pressed="true"><span class="icon">▣</span>utils / 辅助能力</button>
+            <button class="tree-item" data-folder="docs" type="button" aria-pressed="false"><span class="icon">▣</span>docs / 设计文档</button>
+          </div>
+          <div class="mini-label">关键入口</div>
+          <button class="tree-item" data-folder="main" type="button" aria-pressed="false"><span class="icon">◇</span>main.py</button>
+          <button class="tree-item" data-folder="flow" type="button" aria-pressed="false"><span class="icon">◇</span>flow.py</button>
+          <button class="tree-item" data-folder="nodes" type="button" aria-pressed="false"><span class="icon">◇</span>nodes.py</button>
+        </div>
+        <div class="side-footer">这里会显示扫描得到的真实目录。当前内容仅用于讨论视觉方向。</div>
+      </aside>
+
+      <section class="panel main-panel" id="folder-detail" aria-label="文件夹说明样稿">
+        <div class="main-top">
+          <div class="breadcrumbs">PocketFlow / <strong id="crumb">utils</strong></div>
+          <div class="folder-title-row"><h2 id="folder-title">utils / 辅助能力</h2><span class="tag" id="folder-tag">源码线索</span></div>
+          <p class="folder-description" id="folder-description">集中处理仓库文件抓取和模型调用等支撑工作。下方列出参与生成流程的关键文件。</p>
+        </div>
+        <div class="main-content">
+          <div class="section-heading"><h3>这个文件夹的关键文件</h3><span class="section-note">文件说明 · 演示</span></div>
+          <div id="files">
+            <div class="file-card"><b>utils/crawl_local_files.py</b><small>读取本地项目文件</small></div>
+            <div class="file-card"><b>utils/crawl_github_files.py</b><small>读取 GitHub 仓库文件</small></div>
+            <div class="file-card"><b>utils/call_llm.py</b><small>模型调用与缓存</small></div>
+          </div>
+          <div class="evidence-card"><b id="evidence-title">解释依据 · 05b24cb</b><p id="evidence">crawl_local_files.py:6、crawl_github_files.py:11、call_llm.py:128。示例说明已按本地源码人工核对；页面还没有自动扫描能力。</p></div>
+          <div class="divider"></div>
+          <div class="section-heading"><h3>项目生成流程</h3><span class="section-note">6 个阶段 · 设计示意</span></div>
+          <div class="flow-grid" aria-label="PocketFlow 六阶段流程">
+            <div class="flow-card"><div class="flow-num">01</div><div class="flow-name">获取仓库文件</div></div>
+            <div class="flow-card"><div class="flow-num">02</div><div class="flow-name">识别核心抽象</div></div>
+            <div class="flow-card"><div class="flow-num">03</div><div class="flow-name">分析关系</div></div>
+            <div class="flow-card"><div class="flow-num">04</div><div class="flow-name">安排章节</div></div>
+            <div class="flow-card"><div class="flow-num">05</div><div class="flow-name">撰写章节</div></div>
+            <div class="flow-card"><div class="flow-num">06</div><div class="flow-name">合并教程</div></div>
+          </div>
+        </div>
+      </section>
+
+      <aside class="panel run-panel" id="run-panel" aria-label="运行窗口样稿">
+        <div class="panel-pad">
+          <div class="run-header"><span class="small-title">运行窗口</span><span class="run-badge">M3 接入</span></div>
+          <h2 class="run-title">生成项目导览</h2>
+          <p class="run-subtitle">由后台调用 PocketFlow。正式接入后，这里会显示每一步进度和 Markdown 结果。</p>
+          <div class="field"><label>分析来源</label><div class="value">PocketFlow 本地样本</div></div>
+          <div class="field"><label for="language">输出语言</label><select id="language"><option>中文</option><option>English</option></select></div>
+          <div class="field"><label for="abstractions">最大主题数</label><select id="abstractions"><option>3 个 · 快速了解</option><option>5 个 · 深入阅读</option></select></div>
+          <button class="run-button" type="button" disabled>M3 接入后可运行 →</button>
+          <p class="run-foot">这份样稿不会启动程序，也不会消耗模型额度。</p>
+        </div>
+        <div class="status"><div class="status-line"><span></span>运行状态 · 尚未配置</div><small>接入后会显示六阶段进度、日志与结果。</small></div>
+      </aside>
+    </div>
+    <p class="footnote">RepoLens 视觉概念 v0.2 · 样本说明经本地源码人工核对 · 此页面仅用于确认布局和风格。</p>
+  </main>
+
+  <script>
+    const folderData = {
+      root: { crumb: '项目总览', title: '项目总览', tag: '源码线索', description: '从仓库输入开始，经过六个处理阶段，最终生成带有章节的 Markdown 教程。', files: [['main.py', '命令行入口与参数'], ['flow.py', '六阶段流程连接'], ['nodes.py', '各阶段具体实现']], evidence: 'main.py:40 定义输入，flow.py:12 串联流程；版本 05b24cb。示例内容已人工核对。' },
+      utils: { crumb: 'utils', title: 'utils / 辅助能力', tag: '源码线索', description: '集中处理仓库文件抓取和模型调用等支撑工作。下方列出参与生成流程的关键文件。', files: [['utils/crawl_local_files.py', '读取本地项目文件'], ['utils/crawl_github_files.py', '读取 GitHub 仓库文件'], ['utils/call_llm.py', '模型调用与缓存']], evidence: 'crawl_local_files.py:6、crawl_github_files.py:11、call_llm.py:128。示例说明已按本地源码人工核对；页面还没有自动扫描能力。' },
+      docs: { crumb: 'docs', title: 'docs / 设计文档', tag: '待核实', description: '存放上游项目的设计说明。实际产品会根据文档内容和源码交叉核对文件夹职责。', files: [['docs/design.md', '上游设计说明']], evidence: '此页只展示视觉样稿；正式说明必须回到具体文档位置。' },
+      main: { crumb: 'main.py', title: 'main.py / 程序入口', tag: '源码线索', description: '接收仓库或本地目录、语言、输出位置等参数，初始化共享数据并启动生成流程。', files: [['main.py', '参数与流程启动']], evidence: 'main.py:40 开始配置参数，main.py:108 启动流程；版本 05b24cb。' },
+      flow: { crumb: 'flow.py', title: 'flow.py / 流程编排', tag: '源码线索', description: '按顺序连接获取文件、识别抽象、分析关系、章节排序、撰写和合并六个节点。', files: [['flow.py', '节点连接顺序']], evidence: 'flow.py:24–28 连接六个节点；版本 05b24cb。' },
+      nodes: { crumb: 'nodes.py', title: 'nodes.py / 节点实现', tag: '源码线索', description: '实现六个处理节点，定义每一步怎样准备输入、执行任务并传递结果。', files: [['nodes.py', '六个节点的具体逻辑']], evidence: 'nodes.py:22 起定义 FetchRepo，其他节点依次实现；版本 05b24cb。' }
+    };
+    document.querySelectorAll('[data-folder]').forEach(button => button.addEventListener('click', () => {
+      document.querySelectorAll('[data-folder]').forEach(item => {
+        item.classList.toggle('active', item === button);
+        item.setAttribute('aria-pressed', String(item === button));
+      });
+      const item = folderData[button.dataset.folder];
+      document.getElementById('crumb').textContent = item.crumb;
+      document.getElementById('folder-title').textContent = item.title;
+      const tag = document.getElementById('folder-tag');
+      tag.textContent = item.tag;
+      tag.classList.toggle('amber', item.tag === '待核实');
+      document.getElementById('folder-description').textContent = item.description;
+      document.getElementById('evidence-title').textContent = item.tag === '待核实' ? '解释依据 · 待核实' : '解释依据 · 05b24cb';
+      document.getElementById('evidence').textContent = item.evidence;
+      document.getElementById('files').replaceChildren(...item.files.map(([name, purpose]) => {
+        const card = document.createElement('div'); card.className = 'file-card';
+        const title = document.createElement('b'); title.textContent = name;
+        const detail = document.createElement('small'); detail.textContent = purpose;
+        card.append(title, detail); return card;
+      }));
+    }));
+    const switcher = document.getElementById('page-switch');
+    switcher.addEventListener('click', () => {
+      const showHome = document.body.classList.toggle('show-home');
+      switcher.textContent = showHome ? '查看工作台 ↗' : '查看输入页 ↗';
+      window.scrollTo(0, 0);
+    });
+    document.getElementById('open-example').addEventListener('click', () => {
+      document.body.classList.remove('show-home');
+      switcher.textContent = '查看输入页 ↗';
+      window.scrollTo(0, 0);
+    });
+    if (new URLSearchParams(window.location.search).get('view') === 'home') {
+      document.body.classList.add('show-home');
+      switcher.textContent = '查看工作台 ↗';
+    }
+  </script>
+</body>
+</html>
