@@ -9,6 +9,8 @@
 **/.next/
 **/.vite/
 **/coverage/
+**/test-results/
+**/playwright-report/
 **/.venv/
 **/venv/
 **/*.egg-info/

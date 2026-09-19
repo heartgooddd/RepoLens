@@ -69,7 +69,7 @@ SQLite 的数据库是本机文件，不需要另起一个数据库服务；Fast
 ```text
 RepoLens/
 ├── docs/                    产品设计、实施路线、系统架构、视觉样稿
-├── web/                     React 页面（M1 创建）
+├── web/                     React 演示页面（M1 步骤 2 已创建）
 ├── server/                  FastAPI 与数据操作（M2 创建）
 ├── upstream/                上游参考项目快照
 ├── notes/                   静态研究笔记
