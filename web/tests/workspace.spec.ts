@@ -1,5 +1,5 @@
 import { expect, test as base } from '@playwright/test'
-import type { Page } from '@playwright/test'
+import type { Page, TestInfo } from '@playwright/test'
 
 const test = base.extend({
   page: async ({ page }, use) => {
@@ -24,22 +24,34 @@ async function expectNoOverflow(page: Page) {
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true)
 }
 
+async function capture(page: Page, testInfo: TestInfo, name: string) {
+  // Capture the same scroll position so sticky navigation is not misplaced in full-page images.
+  await page.evaluate(() => {
+    window.scrollTo({ top: 0, behavior: 'instant' })
+    document.querySelector('.run-panel')?.scrollTo({ top: 0, behavior: 'instant' })
+  })
+  await page.mouse.move(0, 0)
+  await page.screenshot({ path: testInfo.outputPath(name), fullPage: true })
+}
+
 test('输入页、文件夹证据、空结果与导航', async ({ page }, testInfo) => {
   await page.goto('/')
   await expect(page.getByText('演示模式 · 不调用模型')).toBeVisible()
   await expect(page.getByLabel('GitHub 仓库地址')).toBeDisabled()
   await expectNoOverflow(page)
-  await page.screenshot({ path: testInfo.outputPath('home.png'), fullPage: true })
+  await capture(page, testInfo, 'home.png')
   await page.getByRole('link', { name: '进入 PocketFlow 示例工作台' }).click()
   await expect(page.getByRole('heading', { name: 'PocketFlow 项目地图' })).toBeVisible()
-  await page.screenshot({ path: testInfo.outputPath('workspace.png'), fullPage: true })
+  await capture(page, testInfo, 'workspace.png')
   await page.getByRole('button', { name: '运行结果', exact: true }).click()
   await expect(page.getByRole('heading', { name: '还没有演示结果' })).toBeVisible()
+  await capture(page, testInfo, 'empty.png')
   await page.getByRole('button', { name: 'main.py', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'main.py / 程序入口' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'main.py', exact: true })).toHaveAttribute('aria-pressed', 'true')
   await page.getByRole('button', { name: 'main.py 命令行参数与流程启动' }).click()
   await expect(page.getByRole('region', { name: '源码片段' })).toContainText('ArgumentParser')
+  await expectNoOverflow(page)
   await expect(page.getByRole('link', { name: '在 GitHub 查看这个版本' })).toHaveAttribute('href', /05b24cbbb0fe409c5e23c9791f0342f07524ffdc\/main.py#L40/)
   await page.getByRole('button', { name: 'docs / 设计文档' }).click()
   await expect(page.getByRole('heading', { name: 'docs / 设计文档' })).toBeVisible()
@@ -53,6 +65,8 @@ test('输入页、文件夹证据、空结果与导航', async ({ page }, testIn
 
 test('成功演示保留参数快照并切换章节', async ({ page }, testInfo) => {
   await openSample(page)
+  await page.getByRole('button', { name: 'flow.py', exact: true }).click()
+  await expect(page.getByRole('heading', { name: 'flow.py / 流程编排' })).toBeVisible()
   await page.getByLabel('输出语言').selectOption('en')
   await page.getByLabel('最大主题数').selectOption('5')
   await page.getByRole('button', { name: '开始演示运行' }).click()
@@ -60,13 +74,14 @@ test('成功演示保留参数快照并切换章节', async ({ page }, testInfo)
   await expect(page.getByLabel('输出语言')).toBeDisabled()
   await page.getByRole('button', { name: '运行结果', exact: true }).click()
   await expect(page.getByRole('heading', { name: '演示正在进行' })).toBeVisible()
+  await capture(page, testInfo, 'processing.png')
   await expect(page.getByRole('status')).toHaveText('演示完成')
   await page.getByRole('button', { name: '查看演示结果' }).click()
   await expect(page.getByText('预置演示结果')).toBeVisible()
   await expect(page.getByRole('navigation', { name: '演示章节' }).getByRole('button')).toHaveCount(5)
   await page.getByRole('button', { name: '05 / Compare the design' }).click()
   await expect(page.getByRole('heading', { name: 'Compare the design' })).toBeVisible()
-  await page.screenshot({ path: testInfo.outputPath('result.png'), fullPage: true })
+  await capture(page, testInfo, 'result.png')
   await page.getByLabel('输出语言').selectOption('zh')
   await page.getByLabel('最大主题数').selectOption('3')
   await expect(page.locator('.result-meta')).toContainText('English')
@@ -87,7 +102,7 @@ test('失败情境、重试和停止不会留下过期结果', async ({ page }, 
   await expect(page.getByRole('status')).toHaveText('演示失败')
   await page.getByRole('button', { name: '运行结果', exact: true }).click()
   await expect(page.getByRole('heading', { name: '这次演示未完成' })).toBeVisible()
-  await page.screenshot({ path: testInfo.outputPath('failure.png'), fullPage: true })
+  await capture(page, testInfo, 'failure.png')
   await page.getByRole('button', { name: '重试成功演示' }).click()
   await expect(page.getByLabel('演示情境')).toHaveValue('success')
   await page.getByRole('button', { name: '停止演示' }).click()

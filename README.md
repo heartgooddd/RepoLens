@@ -12,7 +12,7 @@
 - [工作台视觉样稿](docs/mockups/01-workbench-concept.html)：可在浏览器切换输入页与工作台的设计概念，尚未连接后台；也可直接查看[输入页截图](docs/mockups/01-home-concept.png)和[工作台截图](docs/mockups/01-workbench-concept.png)。
 - [PocketFlow 第一轮解析笔记](notes/00-pocketflow-first-pass.md)：当前上游样本的静态阅读记录。
 
-当前已完成步骤 2：`web/` 中的 React 演示页面可运行，保留 M0 的浅色青绿与三栏布局。开发结果保存在 `feat/m1-web`；下一步是步骤 3 的 M1 收尾验收。`server/`、数据库、仓库导入和真实模型运行尚未接入。
+当前已完成步骤 3：M1 React 演示页面已通过桌面和窄屏验收，并合并到本地 `main`；`feat/m1-web` 保留用于回溯。页面保留 M0 的浅色青绿与三栏布局，实际截图、测试命令和结论见 [M1 验收记录](evidence/m1/acceptance.md)。`server/`、数据库、仓库导入和真实模型运行尚未接入。
 
 ## 打开页面
 
@@ -44,7 +44,7 @@ npm run build
 npm run test:e2e
 ```
 
-构建命令同时检查 TypeScript，产物位于被忽略的 `web/dist/`。浏览器测试使用本机 Google Chrome，自动在 `127.0.0.1:5174` 启动测试服务器，覆盖桌面与窄屏；该端口需空闲。其他电脑若未安装 Chrome，可先运行 `npx playwright install chrome`。测试临时截图与失败轨迹在被忽略的 `web/test-results/`；选定的开发截图和检查结果见 [步骤 2 开发检查](evidence/m1/step-2-check.md)。
+构建命令同时检查 TypeScript，产物位于被忽略的 `web/dist/`。浏览器测试使用本机 Google Chrome，自动在 `127.0.0.1:5174` 启动测试服务器，覆盖桌面与窄屏；该端口需空闲。其他电脑若未安装 Chrome，可先运行 `npx playwright install chrome`。测试临时截图与失败轨迹在被忽略的 `web/test-results/`；当前验收证据见 [M1 验收记录](evidence/m1/acceptance.md)，早期开发记录见 [步骤 2 检查](evidence/m1/step-2-check.md)。
 
 构建后如需检查生产产物，运行 `npm run preview` 并打开 http://127.0.0.1:4173/ 。
 
