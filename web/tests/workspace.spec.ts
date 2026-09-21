@@ -37,7 +37,8 @@ async function capture(page: Page, testInfo: TestInfo, name: string) {
 test('输入页、文件夹证据、空结果与导航', async ({ page }, testInfo) => {
   await page.goto('/')
   await expect(page.getByText('本地工作区 · 真实快照')).toBeVisible()
-  await expect(page.getByLabel('GitHub 仓库地址')).toBeDisabled()
+  await expect(page.getByLabel('GitHub 仓库地址')).toBeEnabled()
+  await expect(page.getByRole('button', { name: '读取公开仓库' })).toBeDisabled()
   await expectNoOverflow(page)
   await capture(page, testInfo, 'home.png')
   await page.getByRole('link', { name: '进入 PocketFlow 示例工作台' }).click()

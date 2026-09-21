@@ -19,25 +19,31 @@ from .request_limits import ImportBodyLimit, ORIGINS
 from .source import SourceSlice, read_source
 from .runner import Runner
 from .run_api import routes
+from .github_importer import GitHubImporter, GitHubImportJob, GitHubImportRequest
+from .import_policy import fail
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or Settings.from_env()
 
     runner = Runner(settings)
+    github_importer = GitHubImporter(settings)
 
     @asynccontextmanager
     async def lifespan(_: FastAPI):
         settings.prepare()
         migrate(settings.database)
         runner.start()
+        github_importer.start()
         try:
             yield
         finally:
+            await github_importer.close()
             await runner.close()
 
-    app = FastAPI(title="RepoLens API", version="0.2.0", lifespan=lifespan)
+    app = FastAPI(title="RepoLens API", version="0.4.0", lifespan=lifespan)
     app.state.runner = runner
+    app.state.github_importer = github_importer
     app.include_router(routes(settings, runner))
     app.add_middleware(ImportBodyLimit)
     app.add_middleware(
@@ -54,6 +60,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     @app.post("/api/projects/import", response_model=ImportResult, status_code=201)
     def import_repository(body: ImportRequest) -> ImportResult:
         return import_project(settings, body)
+
+    @app.post("/api/github-imports", response_model=GitHubImportJob, status_code=202)
+    async def start_github_import(body: GitHubImportRequest) -> GitHubImportJob:
+        return github_importer.create(body.repository_url)
+
+    @app.get("/api/github-imports/{job_id}", response_model=GitHubImportJob)
+    def github_import(job_id: UUID) -> GitHubImportJob:
+        result = github_importer.get(str(job_id))
+        if result is None:
+            fail("github_import_not_found", "远程导入任务不存在。", 404)
+        return result
 
     @app.get("/api/snapshots/{snapshot_id}/source", response_model=SourceSlice)
     def source(snapshot_id: UUID, path: str, start: Annotated[int, Query(ge=1)] = 1,

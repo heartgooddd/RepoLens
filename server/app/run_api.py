@@ -1,7 +1,7 @@
 import hashlib
 from uuid import UUID
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Response
 from fastapi.responses import Response
 
 from .config import Settings
@@ -26,8 +26,11 @@ def routes(settings: Settings, runner: Runner) -> APIRouter:
         return runner.configuration()
 
     @api.post('/api/runs', response_model=Run, status_code=201)
-    async def create(body: RunRequest):
-        return runner.create(body)
+    async def create(body: RunRequest, response: Response):
+        run, cache_hit = runner.create(body)
+        response.status_code = 200 if cache_hit else 201
+        response.headers['X-RepoLens-Result-Cache'] = 'hit' if cache_hit else 'miss'
+        return run
 
     @api.get('/api/runs')
     def history(snapshot_id: UUID, limit: int = Query(20, ge=1, le=100), offset: int = Query(0, ge=0)):

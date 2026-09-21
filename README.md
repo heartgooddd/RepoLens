@@ -12,11 +12,11 @@
 - [工作台视觉样稿](docs/mockups/01-workbench-concept.html)：可在浏览器切换输入页与工作台的设计概念，尚未连接后台；也可直接查看[输入页截图](docs/mockups/01-home-concept.png)和[工作台截图](docs/mockups/01-workbench-concept.png)。
 - [PocketFlow 第一轮解析笔记](notes/00-pocketflow-first-pass.md)：当前上游样本的静态阅读记录。
 
-当前已完成 **步骤 7：M3 真实 PocketFlow 验收**，按 G2 保存并按 G3 合并到本机 `main`。页面已支持真实项目地图、固定入口任务、阶段日志、取消、历史结果、Markdown预览和下载；仍保留独立演示和无模型替身验证。
+当前已完成 **步骤 8：M4 公开 GitHub 导入**。页面已支持公开 GitHub 仓库 URL、默认分支 Commit 固定、受限快照读取、导入进度／错误、版本地图，以及 M3 的固定入口任务、日志、取消、历史结果、Markdown预览和下载；仍保留独立演示和无模型替身验证。
 
 本次从页面仅启动一次 `utils / 中文 / 3主题` 真实任务，模型 `deepseek/deepseek-v4-flash`，7次模型调用全部成功，无重试，API报告费用 **$0.0034756449**。数据库、输出、页面下载一致，后台重启后历史结果可重开。见 [真实验收与截图](evidence/m3/acceptance.md)、[实际生成索引](evidence/m3/real-output/index.md)、[任务配置与接口](docs/07-task-runner.md)。
 
-模型生成内容明确标为推断，引用不匹配标待核实；引用匹配仍需判断语义。当前真实模式限定已核对的PocketFlow快照utils范围，未开放任意仓库或远程导入。下一步为M4，本次未开始；所有提交只保存在本机。
+M4 实际远程读取官方 PocketFlow，固定 Commit `05b24cbbb0fe409c5e23c9791f0342f07524ffdc`；重复导入复用同一源码快照。模型结果缓存另按模型、提示词和参数隔离。远程导入不会执行仓库代码，任意远程仓库也不会自动获得真实运行能力。见 [M4验收](evidence/m4/acceptance.md)和[导入说明](docs/09-github-import.md)。下一步为M5；所有提交只保存在本机。
 
 ## 启动后台
 
@@ -48,7 +48,7 @@ npm run dev
 
 本机已安装依赖；首次在其他环境使用或锁文件变化后，先在 `web/` 执行 `npm ci`。开发时记录的环境为 Node.js 22.23.0、npm 10.9.8，依赖为 React 19.3.0、TypeScript 7.0.2、Vite 8.3.0，具体版本由 `web/package-lock.json` 锁定。Node 要求为 20.19+ 或 22.12+，见 [Vite 官方说明](https://vite.dev/guide/)。
 
-1. 先启动后台，再启动前端。点击“扫描 PocketFlow 样本”读取本地上游 Git HEAD，或点击“选择本地文件夹”上传选定目录。
+1. 先启动后台，再启动前端。在首页粘贴完整公开 GitHub 仓库地址并点击“读取公开仓库”；也可点击“扫描 PocketFlow 样本”读取本地上游 Git HEAD，或点击“选择本地文件夹”上传选定目录。
 2. 工作台显示“真实快照”。点击目录逐级展开，选择 `main.py`、`flow.py`、`nodes.py` 或 `utils` 内的文件，点击定义／入口行号查看已校验的源码。
 3. 刷新页面，或停掉后台再启动，仍可打开相同项目 URL；首页“已保存的项目”也可重开。数据位于 `var/`，不是浏览器缓存。
 4. 在真实工作台右侧选择“真实 PocketFlow”，确认 `utils / 中文 / 3主题`，点击“启动真实任务”。这会使用本机OpenRouter配置并产生费用；当前只允许固定PocketFlow快照，最多3主题。成功后点击“查看真实结果”，切换章节或下载。只查看历史不会再次调用模型。
@@ -58,7 +58,7 @@ npm run dev
 
 真实地图通过同源 `/api` 代理连接 `127.0.0.1:8000`，默认前端地址仍是 5173；如需改后端地址，在启动 Vite 时设置 `REPOLENS_API_PROXY`（仅本机配置，不是用户仓库输入）。生产构建不自带 Python 后台或代理，外部部署尚未配置；本地 `npm run preview` 也配置了相同代理。
 
-上传仅保留支持的 UTF-8 文本文件，排除环境／常见凭据、依赖、构建和二进制资源；内置样本额外排除链接和子模块；单文件 ≤ 1 MiB、总内容 ≤ 8 MiB、最多 500 个文件。规则、请求和错误码详见 [后台 README](server/README.md)。浏览器只提交相对路径；纯空目录通常无法在原生选择器中上报，界面有说明。目录名推断单独标注，证据不足的职责标为待核实。
+上传和GitHub归档仅保留支持的 UTF-8 文本文件，排除环境／常见凭据、依赖、构建和二进制资源；单文件 ≤ 1 MiB、总保留内容 ≤ 8 MiB、最多 500 个文件。GitHub另限制30秒、16MiB压缩、2000条目和32MiB解包，并拒绝越界路径与链接。规则、请求和错误码详见 [后台 README](server/README.md)。目录名推断单独标注，证据不足的职责标为待核实。
 
 演示模式的进度、日志和结果仍为预置数据，不调用模型；刷新会清空演示状态。窄屏用顶部区域按钮定位解释与运行窗口。
 
@@ -72,7 +72,7 @@ npm run build
 npm run test:e2e
 ```
 
-构建命令同时检查 TypeScript，产物位于被忽略的 `web/dist/`。浏览器测试使用本机 Google Chrome，自动启动 `127.0.0.1:5174` 测试前端和 `127.0.0.1:8001` 隔离测试后台；先按上文安装 `server/.venv`，两个端口需空闲。测试数据位于 `var/tests/`，不修改开发数据库。其他电脑若未安装 Chrome，可先运行 `npx playwright install chrome`。测试临时截图与失败轨迹在被忽略的 `web/test-results/`；本步验证见 [M3 真实验收](evidence/m3/acceptance.md)（59项后台测试、18项桌面／窄屏浏览器检查通过；真实页面另做一次任务及重启读回）；项目地图验收见 [M2 验收记录](evidence/m2/acceptance.md)；此前演示验收保留在 [M1 验收记录](evidence/m1/acceptance.md)。
+构建命令同时检查 TypeScript，产物位于被忽略的 `web/dist/`。浏览器测试使用本机 Google Chrome，自动启动隔离前后端；测试数据位于 `var/tests/`，不修改开发数据库。其他电脑若未安装 Chrome，可先运行 `npx playwright install chrome`。当前验证见 [M4验收](evidence/m4/acceptance.md)；M3真实运行、M2地图和M1演示证据仍分别保留在各阶段目录。
 
 构建后如需检查生产产物，运行 `npm run preview` 并打开 http://127.0.0.1:4173/ 。
 
@@ -82,7 +82,7 @@ npm run test:e2e
 - `web/src/pages/`：输入页与工作台；`web/src/components/`：文件夹、解释、表单、结果组件。
 - `web/src/demo/`：固定演示样本与预置章节；`web/src/hooks/`：模拟运行状态；`web/tests/`：浏览器关键路径检查。
 - `web/src/api/`：真实 API 客户端；`RepositoryPage` 展示真实工作台，演示数据继续独立保存。
-- `server/`：FastAPI、导入与静态扫描、SQLite 迁移、源码接口、任务与产物服务；`server/app/prompts/` 存职责补充提示词。
+- `server/`：FastAPI、本地／GitHub导入、静态扫描、SQLite迁移、源码接口、任务与产物服务；`server/app/prompts/` 存职责补充提示词。
 - `server/pocketflow/`：固定上游版本与独立依赖环境说明、完整锁文件。
 - `var/`：被忽略的数据库、快照和运行数据；不随 Git 提交。
 - `upstream/`：候选上游项目目录；PocketFlow 已下载，其余目录保持为空。

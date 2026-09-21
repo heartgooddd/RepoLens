@@ -17,6 +17,7 @@ from app.claims import verify_claims
 from app.db import connect
 from app.main import create_app
 from app.pocketflow_adapter import COMMIT, isolated_environment, pocketflow_command
+from app import runner
 from test_import import upload
 from test_api import live_server
 
@@ -67,6 +68,35 @@ def test_success_has_durable_parameters_stages_logs_and_safe_artifacts(settings)
         assert client.get(f'/api/runs/{run_id}').json() == run
         assert client.get('/api/runs', params={'snapshot_id': snap['id']}).json()['total'] == 1
         assert client.get(f"/api/runs/{run_id}/artifacts/{index['id']}").status_code == 200
+
+
+def test_result_cache_key_separates_model_and_every_analysis_parameter():
+    base = dict(snapshot_revision='sha256:abc', mode='pocketflow', provider='OPENROUTER', model='model-a',
+                prompt_version='folder-responsibility-v1', language='zh', topics=3, scope='utils', scenario='success')
+    assert hasattr(runner, 'result_cache_key')
+    original = runner.result_cache_key(**base)
+    assert original == runner.result_cache_key(**base)
+    for field, value in {
+        'snapshot_revision': 'sha256:def', 'mode': 'stub', 'provider': 'OTHER', 'model': 'model-b',
+        'prompt_version': 'folder-responsibility-v2', 'language': 'en', 'topics': 2, 'scope': '.', 'scenario': 'failure',
+    }.items():
+        assert runner.result_cache_key(**{**base, field: value}) != original
+
+
+def test_stub_runs_keep_independent_history_even_when_cache_keys_match(settings):
+    with TestClient(create_app(settings)) as client:
+        snap = snapshot(client)
+        body = {'snapshot_id': snap['id'], 'scope': 'utils', 'language': 'en', 'topics': 5}
+        first = wait_for(client, client.post('/api/runs', json=body).json()['id'], {'succeeded'})
+        repeated = client.post('/api/runs', json=body)
+        assert repeated.status_code == 201
+        assert repeated.json()['id'] != first['id']
+        assert repeated.json()['result_cache_key'] == first['result_cache_key']
+        wait_for(client, repeated.json()['id'], {'succeeded'})
+        changed = client.post('/api/runs', json={**body, 'topics': 3})
+        assert changed.status_code == 201
+        assert changed.json()['id'] != first['id']
+        assert changed.json()['result_cache_key'] != first['result_cache_key']
 
 
 def test_failure_cancel_and_busy_do_not_publish_success(settings):

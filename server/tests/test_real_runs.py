@@ -46,7 +46,8 @@ def test_missing_key_and_real_scope_rejected_before_start(settings):
 
 
 def test_pinned_entry_end_to_end_with_mock_model_and_durable_usage(settings):
-    with TestClient(prepare(settings)) as client:
+    app = prepare(settings)
+    with TestClient(app) as client:
         request = registered(client, settings)
         response = client.post('/api/runs',json=request)
         assert response.status_code==201,response.text
@@ -64,6 +65,16 @@ def test_pinned_entry_end_to_end_with_mock_model_and_durable_usage(settings):
         assert 'FolderResponsibilities' in log and FAKE_KEY not in log
         for path in (settings.data_dir/'runs'/run_id).rglob('*'):
             if path.is_file(): assert FAKE_KEY.encode() not in path.read_bytes()
+        cached = client.post('/api/runs', json=request)
+        assert cached.status_code == 200
+        assert cached.headers['x-repolens-result-cache'] == 'hit'
+        assert cached.json()['id'] == run_id
+        app.state.runner.model_loader = lambda: ModelConfig('OPENROUTER', 'fixture/model-b', BASE_URL, FAKE_KEY)
+        changed_model = client.post('/api/runs', json=request)
+        assert changed_model.status_code == 201
+        assert changed_model.json()['id'] != run_id
+        assert changed_model.json()['result_cache_key'] != run['result_cache_key']
+        assert wait_for(client, changed_model.json()['id'], {'succeeded', 'failed'}, timeout=15)['status'] == 'succeeded'
     with TestClient(prepare(settings)) as client:
         reopened=client.get(f'/api/runs/{run_id}').json()
         assert reopened==run

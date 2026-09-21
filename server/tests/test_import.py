@@ -134,6 +134,6 @@ def test_version_one_project_survives_upgrade(settings, data_dir):
     project_id = str(uuid4())
     with connect(settings.database) as db:
         db.execute('INSERT INTO projects VALUES (?, ?, ?, ?, ?, ?)', (project_id, '旧项目', 'test_fixture', 'v1 fixture', '2026-09-21T00:00:00Z', '2026-09-21T00:00:00Z'))
-    assert migrate(settings.database) == 4
+    assert migrate(settings.database) == 5
     with TestClient(create_app(settings)) as client:
         assert client.get(f'/api/projects/{project_id}').json()['project']['name'] == '旧项目'

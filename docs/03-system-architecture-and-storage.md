@@ -1,6 +1,6 @@
 # RepoLens 系统架构与数据保存方案
 
-> 状态：M1、M2与M3已实施（2026-09-21）；固定PocketFlow utils真实生成已验收，保留明确标识的替身模式。配合[页面蓝图](01-product-blueprint.md)和[实施路线](02-delivery-roadmap.md)使用。
+> 状态：M1–M4已实施（2026-09-21）；固定PocketFlow真实生成与公开GitHub固定Commit导入均已验收，保留明确标识的替身模式。配合[页面蓝图](01-product-blueprint.md)和[实施路线](02-delivery-roadmap.md)使用。
 
 具体开发任务和可复制提示词见 [00 创作总指南](00-creation-guide.md)：步骤 4–5 接数据库和真实地图，步骤 6–7 接运行任务。版本管理见 [04 Git 操作手册](04-git-workflow.md)。
 
@@ -107,7 +107,7 @@ RepoLens/
 - 版本 002 新增 `snapshot_files`（路径、字节数、SHA-256）和卡片 `inference` 字段。真实目录来自过滤后的快照，Python 定义、入口条件和连接表达式由 AST 提取；README／配置保留原文片段。名称推断与事实分别展示，无证据的职责保留待核实。
 - `GET /api/snapshots/{id}/source` 只读已登记文件，检查相对路径、链接和 SHA-256，分页返回带行号文本；修改或丢失的快照返回 409。
 - React 在 `#/projects/<id>` 通过 API 读回，首页列 SQLite 中的项目；演示入口 `#/workspace` 独立保留。Vite 本机代理 `/api` 到后台。
-- 限制与请求字段见 [后台 README](../server/README.md)，实际验收见 [M2 记录](../evidence/m2/acceptance.md)。此处描述M2地图；运行任务已在M3补齐，完整符号图与GitHub远程下载仍未实现。
+- 限制与请求字段见 [后台 README](../server/README.md)，实际验收见 [M2 记录](../evidence/m2/acceptance.md)。此处描述M2地图；运行任务已在M3补齐，GitHub远程下载已在M4补齐，完整符号图仍未实现。
 
 
 ## 9. M3 步骤 6–7 的落地约定
@@ -118,3 +118,10 @@ RepoLens/
 - React 轮询任务和增量日志，刷新后重开历史。Markdown 禁止原始 HTML，外部图片不加载，章节只允许切换本次已登记产物。下载与读取都核对内容哈希。
 - 职责提示词在 `server/app/prompts/` 版本管理；引用检查同一快照的文件、行号、原文。匹配也只标推断，不匹配标待核实，不覆盖原始事实。真实任务末尾调用版本化提示词，校验结果显示于页面；异常验证使用模拟响应，不消耗真实模型额度。
 - 当前是本机单进程、单活动任务，没有分布式队列或操作系统沙箱。具体 API／配置见 [任务服务说明](07-task-runner.md)，真实证据见 [步骤7验收](../evidence/m3/acceptance.md)，固定输出历史见 [步骤6记录](../evidence/m3/step-6-check.md)。
+
+## 10. M4 公开 GitHub 导入与缓存
+
+- 首页创建持久化导入任务；后台只接受公开 `github.com/owner/repo` HTTPS 根地址，通过 GitHub API 解析默认分支当前 Commit，再下载该 Commit 的 codeload tar.gz。页面轮询阶段、百分比、固定版本和错误。
+- 归档按压缩大小、条目、解包总量、保留文件数／大小和总时限约束；逐成员验证唯一根、相对路径、类型及冲突，从不执行仓库文件。规则见 [M4说明](09-github-import.md)。
+- `github_sources + github_snapshot_cache` 是源码缓存：同仓库同 Commit 返回同一 snapshot；新 Commit 在同一 project 下新增 snapshot。`runs.result_cache_key` 是结果缓存：只有相同快照、模型、提示词和全部参数的成功真实结果才可复用，且复用前重验产物哈希。
+- 地图扫描、源码证据和运行任务继续只接受登记的 snapshot_id；远程来源没有新增可执行入口。实际远程 PocketFlow、错误和版本变化见 [M4验收](../evidence/m4/acceptance.md)。

@@ -1,6 +1,6 @@
-# RepoLens 后台：真实仓库地图与 M3 任务服务
+# RepoLens 后台：真实仓库地图、GitHub 导入与任务服务
 
-已完成步骤 4–5：SQLite 保存、受限目录导入、静态扫描和源码读取。首次启动不自动插入项目；本机验收已导入一份 PocketFlow。步骤 6 已增加持久化任务、子进程生命周期、日志和产物；步骤 7 接入受控 OpenRouter 真运行；默认仍为无模型替身，显式开启后可选择真实模式。演示工作台保持独立。
+步骤4–8已完成：SQLite、受限目录／公开GitHub导入、静态扫描、源码读取、持久化任务和受控OpenRouter运行。GitHub导入先固定Commit再读取受限归档；远程源码不会执行。默认仍为无模型替身，显式开启后可选择已登记的真实模式。
 
 ## 环境与安装
 
@@ -55,6 +55,7 @@ RepoLens/var/
 |---|---|
 | `app/main.py` | 生命周期、健康检查、导入、列表、详情与源码接口 |
 | `app/importer.py`、`scanner.py` | 固定 Git 版本读取、上传校验、快照保存和静态证据提取 |
+| `app/github_importer.py` | GitHub URL规范化、Commit解析、受限归档、进度任务和源码快照复用 |
 | `app/import_policy.py`、`request_limits.py` | 排除规则、路径和体积边界、读取请求体前的上限 |
 | `app/source.py` | 已登记文件的哈希校验与源码分段返回 |
 | `app/models.py` | Pydantic 接口字段、路径和关联校验 |
@@ -63,16 +64,17 @@ RepoLens/var/
 | `migrations/001_repository_metadata.sql` | 初始表、索引、外键与约束 |
 | `migrations/002_snapshot_files.sql` | 文件清单与名称推断字段，保留旧数据 |
 | `migrations/003_runs.sql`、`004_run_model.sql` | 任务、产物与模型用量元数据 |
+| `migrations/005_github_cache.sql` | GitHub来源／快照缓存、导入任务和模型结果缓存键 |
 | `app/runner.py`、`bounded_llm.py`、`pocketflow/worker.py` | 固定入口、生命周期、受控模型调用与上游适配 |
 | `tests/` | HTTP 合约、持久化、迁移及真实进程重启验证 |
 
-关系：`projects → snapshots → folder_cards → evidence_refs`。每个项目可有多个快照；每个快照中的目录路径唯一；证据的文件位置依附于同一快照中的文件夹卡，复合外键防止跨快照错配。删除父记录会级联删除子元数据，目前不暴露删除 API。`snapshot_files` 按快照保存文件路径、字节数和 SHA-256。事实、推断和待核实分开存储，不能用推断覆盖原始引用。
+关系：`projects → snapshots → folder_cards → evidence_refs`。`github_sources`按规范仓库关联项目，`github_snapshot_cache`按仓库和Commit唯一关联快照；`runs.result_cache_key`独立标识模型结果配置。源码缓存与运行产物不共用键。每个快照中的目录路径唯一；`snapshot_files`保存路径、字节数和SHA-256。
 
 `create_project(database, ProjectDetail)` 是内部 Python 保存入口，一次事务写入完整聚合；不覆盖已有 ID，失败则全部回滚。导入器先验证所有内容，再复制到 UUID 快照目录，最后调用此入口；普通异常会清理失败快照，进程硬中断可能留下未登记的孤立目录，不会自动删除。
 
 ### 后续迁移规则
 
-1. 后续从 `005_<name>.sql` 开始新增连续版本，版本连续；不要修改已执行的迁移。
+1. 后续从 `006_<name>.sql` 开始新增连续版本，版本连续；不要修改已执行的迁移。
 2. 每条完整 SQL 语句以分号结束，最后一条结束后不添加独立注释；一行不写多条语句。不要在文件中写 `BEGIN/COMMIT/ROLLBACK`、`VACUUM` 等自行控制事务的语句。
 3. 执行器在一个 `BEGIN IMMEDIATE` 事务中核对版本与 SHA-256、执行待应用的 SQL 并写 `schema_migrations`。SQL 或校验失败会回滚并阻止服务启动；不会删库重建。
 4. 修改过的历史迁移、缺失版本、比代码新的数据库会被拒绝；恢复匹配代码或补充正确迁移。当前不提供自动降级。
@@ -89,7 +91,7 @@ RepoLens/var/
 无参数。实际读取迁移表和项目表，成功 `200`：
 
 ```json
-{"status":"ok","database":"ok","schema_version":4}
+{"status":"ok","database":"ok","schema_version":5}
 ```
 
 数据库不可用返回 `503 {"detail":"Database unavailable"}`。启动迁移失败时服务不进入就绪状态。此接口检查元数据库可读，不代表源码文件存在或模型可运行。
@@ -126,7 +128,7 @@ RepoLens/var/
 
 - 合法 UUID 不存在：`404 {"detail":"Project not found"}`。
 - ID 格式错误或查询校验错误：`422 {"detail":{"code":"invalid_request","message":"请求字段不合法，请检查来源、文件数量、路径和参数。"}}`；不回显上传文件内容。
-- `source_type=github` 只是预留数据枚举，不代表已具备远程导入。
+- `source_type=github` 表示由M4公开GitHub导入器固定Commit后创建。
 
 ## 验证
 
@@ -175,7 +177,7 @@ curl 'http://127.0.0.1:8000/api/projects?limit=20&offset=0'
 - 仅保留允许扩展名的 UTF-8 文本：Python、Markdown、README、JSON/YAML/TOML、JS/TS、配置、CSS/HTML、SQL、shell 等（精确清单见 `import_policy.py`）。二进制、未知类型和空目录不会保存；空文本文件可以保留。
 - 文件名过滤不是秘密内容扫描器；上传前需自行检查源码中没有硬编码密钥。
 
-成功 `201`：`{detail: ProjectDetail, skipped_count: integer, note: string}`。`detail` 与项目详情模型相同；`skipped_count` 仅为后台跳过的条目，浏览器预先过滤的文件不在请求中。内容版本是保留路径与文件 SHA-256 组成的整体哈希；`commit_sha` 仅内置样本有值。每次导入建立新项目和独立快照，重复导入复用留到 M4，不修改原目录。
+成功 `201`：`{detail: ProjectDetail, skipped_count: integer, note: string}`。此接口用于内置和本地上传；内容版本是保留路径与文件 SHA-256 组成的整体哈希。GitHub导入使用下方独立任务接口。
 
 静态扫描不执行任何文件：提取 Python 顶层定义、精确的 `__name__ == "__main__"` 条件、`>>` 表达式，以及 README／部分配置原文，每个文件最多 12 段线索。`>>` 只标操作符存在，不保证它一定是流程；语法错误或无线索时不编造职责。名称推断存入独立 `inference` 字段并显式标“待核实”。
 
@@ -198,7 +200,15 @@ curl 'http://127.0.0.1:8000/api/projects?limit=20&offset=0'
 
 纯空目录通常不会让浏览器原生目录选择器返回 FileList，因此界面提供明确说明；收到空列表／过滤后为空时显示错误。非法路径由 API 再校验，失败时不创建项目。源码变化或丢失时要求重新导入，不将旧元数据冒充仍然存在的文件。
 
-浏览器目录选择规则参考 [MDN webkitdirectory](https://developer.mozilla.org/en-US/docs/Web/API/HTMLInputElement/webkitdirectory)。当前未提供完整调用图、远程仓库导入或公开部署；M3提供受限真实模型运行与带引用的职责推断。
+浏览器目录选择规则参考 [MDN webkitdirectory](https://developer.mozilla.org/en-US/docs/Web/API/HTMLInputElement/webkitdirectory)。当前未提供完整调用图或公开部署；M3提供受限真实模型运行与带引用的职责推断。
+
+## GitHub 导入 API（步骤 8）
+
+`POST /api/github-imports` 接受 `{"repository_url":"https://github.com/owner/repo"}` 并返回 `202` 导入任务；`GET /api/github-imports/{id}` 返回阶段、百分比、Commit、缓存命中、项目／快照ID和错误。详细状态、限制、缓存键和错误码见 [M4说明](../docs/09-github-import.md)。
+
+后台只访问固定的 `api.github.com` 和 `codeload.github.com`；不 follow redirect，不 clone，不执行hooks或仓库文件。整体30秒；压缩16MiB、2000条目、解包32MiB，之后继续应用M2的500文件／8MiB／单文件1MiB上限。归档逐成员验证且不调用通用extract。
+
+无Token时使用GitHub公开API额度；可在进程环境设置 `REPOLENS_GITHUB_TOKEN`，不会写入数据库或页面。404、限流、超时、无效归档和越界路径均进入失败终态，不登记成功快照。验收见 [M4记录](../evidence/m4/acceptance.md)。
 
 
 ## 任务与产物 API（步骤 6–7）
@@ -226,4 +236,4 @@ curl 'http://127.0.0.1:8000/api/projects?limit=20&offset=0'
 
 完整字段、模式限制、价格／调用上限见 [任务说明](../docs/07-task-runner.md)；本机模型配置见 [OpenRouter 设置](../docs/08-openrouter-setup.md)。默认模式 `stub`，开启 `REPOLENS_ENABLE_REAL_RUN=1` 后允许请求 `mode=pocketflow`，仅固定上游快照 utils、中文、最多3主题。API不接受浏览器传入密钥或模型地址。`GET /api/runner` 返回配置布尔状态，不回传密钥。
 
-迁移当前版本4，模型字段可空，旧替身记录不会被改写为真实任务。模拟模型的固定入口验证位于 `tests/test_real_runs.py`，使用 `pocketflow_fixture_worker.py`、假密钥和 MockTransport，网络请求被拦截；不会消耗模型额度。真实验收证据见 [M3](../evidence/m3/acceptance.md)。
+迁移当前版本5，模型字段和旧记录的结果缓存键可空。真实结果缓存键包含快照版本、模型、提示词和全部分析参数；复用前重验产物。模拟模型验证使用假密钥和MockTransport，不消耗模型额度。真实验收证据见 [M3](../evidence/m3/acceptance.md)，缓存边界见 [M4](../evidence/m4/acceptance.md)。

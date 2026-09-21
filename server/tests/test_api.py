@@ -17,7 +17,7 @@ from app.repository import create_project
 
 def test_empty_api_contract_and_validation(settings):
     with TestClient(create_app(settings)) as client:
-        assert client.get("/api/health").json() == {"status": "ok", "database": "ok", "schema_version": 4}
+        assert client.get("/api/health").json() == {"status": "ok", "database": "ok", "schema_version": 5}
         assert client.get("/api/projects").json() == {"items": [], "total": 0, "limit": 20, "offset": 0}
         assert client.get(f"/api/projects/{uuid4()}").status_code == 404
         for url in ("/api/projects/not-a-uuid", "/api/projects?limit=101", "/api/projects?offset=-1"):
@@ -29,7 +29,7 @@ def test_empty_api_contract_and_validation(settings):
         response = client.get("/api/projects", headers={"Origin": "https://example.com"})
         assert "access-control-allow-origin" not in response.headers
         schema = client.get("/openapi.json").json()
-        assert set(schema["paths"]) >= {"/api/health", "/api/projects", "/api/projects/{project_id}", "/api/projects/import", "/api/snapshots/{snapshot_id}/source"}
+        assert set(schema["paths"]) >= {"/api/health", "/api/projects", "/api/projects/{project_id}", "/api/projects/import", "/api/github-imports", "/api/github-imports/{job_id}", "/api/snapshots/{snapshot_id}/source"}
 
 
 def test_project_details_and_pagination(settings, detail):
@@ -104,7 +104,7 @@ def test_real_process_restart_preserves_project_and_snapshot(settings, detail):
         assert before.status_code == 200
         assert before.json() == detail.model_dump(mode="json")
     # First process is fully stopped. Migration and second startup reuse the same file.
-    assert migrate(settings.database) == 4
+    assert migrate(settings.database) == 5
     with live_server(settings) as client:
         after = client.get(f"/api/projects/{detail.project.id}")
         assert after.status_code == 200

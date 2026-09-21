@@ -22,6 +22,18 @@ MAX_LOG = 256 * 1024
 MAX_ARTIFACT = 512 * 1024
 
 
+def result_cache_key(*, snapshot_revision: str, mode: str, provider: str | None, model: str | None,
+                     prompt_version: str | None, language: str, topics: int, scope: str, scenario: str) -> str:
+    """Key model/stub output by immutable input plus every output-affecting configuration value."""
+    payload = {
+        'snapshot_revision': snapshot_revision, 'mode': mode, 'provider': provider, 'model': model,
+        'prompt_version': prompt_version, 'language': language, 'topics': topics, 'scope': scope,
+        'scenario': scenario, 'runner_commit': COMMIT,
+    }
+    encoded = json.dumps(payload, ensure_ascii=True, sort_keys=True, separators=(',', ':')).encode()
+    return 'sha256:' + hashlib.sha256(encoded).hexdigest()
+
+
 class Runner:
     def __init__(self, settings: Settings, timeout: float = 180):
         self.settings = settings
@@ -71,8 +83,6 @@ class Runner:
         if self.closing:
             fail('runner_closing', '后台正在关闭，请稍后重试。', 503)
         with connect(self.settings.database) as db:
-            if db.execute("SELECT id FROM runs WHERE status IN ('queued','running','cancelling') LIMIT 1").fetchone():
-                fail('runner_busy', '当前已有任务，请完成或取消后再创建。', 409)
             snapshot = db.execute('SELECT * FROM snapshots WHERE id = ?', (str(request.snapshot_id),)).fetchone()
             scope = db.execute('SELECT path FROM folder_cards WHERE snapshot_id = ? AND path = ?', (str(request.snapshot_id), request.scope)).fetchone()
         if not snapshot:
@@ -93,21 +103,55 @@ class Runner:
                 fail('model_config_invalid', '本机模型配置不正确，请检查配置文件。', 409)
             if config.missing():
                 fail('model_config_missing', '模型配置缺失，请在本机填写 OpenRouter 密钥。', 409)
+        prompt_version = 'folder-responsibility-v1' if config else None
+        cache_key = result_cache_key(
+            snapshot_revision=snapshot['revision'], mode=request.mode,
+            provider=config.provider if config else None, model=config.model if config else None,
+            prompt_version=prompt_version, language=request.language, topics=request.topics,
+            scope=request.scope, scenario=request.scenario,
+        )
+        with connect(self.settings.database) as db:
+            cached = db.execute("SELECT id FROM runs WHERE result_cache_key = ? AND status = 'succeeded' ORDER BY ended_at DESC LIMIT 1",
+                                (cache_key,)).fetchone()
+        if request.mode == 'pocketflow' and cached and self.valid_cached_result(cached['id']):
+            return get_run(self.settings.database, cached['id']), True
+        with connect(self.settings.database) as db:
+            if db.execute("SELECT id FROM runs WHERE status IN ('queued','running','cancelling') LIMIT 1").fetchone():
+                fail('runner_busy', '当前已有任务，请完成或取消后再创建。', 409)
         run_id = str(uuid4())
         directory = self.settings.data_dir / 'runs' / run_id
         directory.mkdir()
         (directory / 'run.log').write_text('真实 PocketFlow 任务已创建；失败不自动重试。\n' if config else '替身任务已创建；不会发送模型请求。\n', encoding='utf-8')
         with connect(self.settings.database) as db:
-            db.execute('''INSERT INTO runs(id,snapshot_id,mode,status,stage,language,topics,scope,scenario,created_at,upstream_commit,model_provider,model_name,prompt_version)
-                          VALUES (?,?,?,'queued','queued',?,?,?,?,?,?,?,?,?)''',
+            db.execute('''INSERT INTO runs(id,snapshot_id,mode,status,stage,language,topics,scope,scenario,created_at,upstream_commit,model_provider,model_name,prompt_version,result_cache_key)
+                          VALUES (?,?,?,'queued','queued',?,?,?,?,?,?,?,?,?,?)''',
                        (run_id, str(request.snapshot_id), request.mode, request.language, request.topics, request.scope, request.scenario, now(), COMMIT,
-                        config.provider if config else None, config.model if config else None, 'folder-responsibility-v1' if config else None))
+                        config.provider if config else None, config.model if config else None, prompt_version, cache_key))
         if config:
             self.configs[run_id] = config
         task = asyncio.create_task(self.execute(run_id))
         self.tasks[run_id] = task
         task.add_done_callback(lambda _: self.tasks.pop(run_id, None))
-        return get_run(self.settings.database, run_id)
+        return get_run(self.settings.database, run_id), False
+
+    def valid_cached_result(self, run_id: str) -> bool:
+        base = self.settings.data_dir / 'runs' / run_id / 'output'
+        with connect(self.settings.database) as db:
+            rows = list(db.execute('SELECT path,size_bytes,sha256 FROM artifacts WHERE run_id = ?', (run_id,)))
+        if not rows:
+            return False
+        for row in rows:
+            try:
+                validate_path(row['path'])
+                path = base / row['path']
+                if any(item.is_symlink() for item in [path, *path.parents]) or not path.resolve().is_relative_to(base.resolve()):
+                    return False
+                raw = path.read_bytes()
+            except (OSError, ValueError):
+                return False
+            if len(raw) != row['size_bytes'] or hashlib.sha256(raw).hexdigest() != row['sha256']:
+                return False
+        return True
 
     def prepare_input(self, run):
         destination = self.settings.data_dir / 'runs' / run.id / 'input'

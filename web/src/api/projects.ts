@@ -7,6 +7,14 @@ export interface Detail { project: Project; snapshots: Snapshot[] }
 export interface ProjectList { items: (Project & { snapshot_count: number })[]; total: number; offset: number; limit: number }
 export interface SourceSlice { path: string; sha256: string; line_start: number; line_end: number; total_lines: number; content: string }
 export interface ImportResult { detail: Detail; skipped_count: number; note: string }
+export interface GitHubImportJob {
+  id: string; repository_url: string; canonical_url: string; repository_key: string;
+  status: 'queued' | 'running' | 'succeeded' | 'failed' | 'interrupted';
+  stage: 'queued' | 'resolving' | 'downloading' | 'extracting' | 'scanning' | 'saving' | 'complete' | 'error' | 'interrupted';
+  progress: number; commit_sha: string | null; project_id: string | null; snapshot_id: string | null;
+  cache_hit: boolean; skipped_count: number; error_code: string | null; error_message: string | null;
+  created_at: string; updated_at: string;
+}
 
 export async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   try {
@@ -23,6 +31,10 @@ export const projects = (offset = 0, signal?: AbortSignal) => request<ProjectLis
 export const project = (id: string, signal?: AbortSignal) => request<Detail>(`/projects/${encodeURIComponent(id)}`, { signal })
 export const source = (id: string, path: string, start: number, signal?: AbortSignal) => request<SourceSlice>(`/snapshots/${id}/source?${new URLSearchParams({ path, start: String(start), limit: '80' })}`, { signal })
 export const importBuiltin = () => request<ImportResult>('/projects/import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ source: 'builtin' }) })
+export const startGitHubImport = (repositoryUrl: string) => request<GitHubImportJob>('/github-imports', {
+  method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ repository_url: repositoryUrl }),
+})
+export const getGitHubImport = (id: string, signal?: AbortSignal) => request<GitHubImportJob>(`/github-imports/${encodeURIComponent(id)}`, { signal })
 
 const excludedDirs = new Set(['.git', '.hg', '.svn', 'node_modules', '.venv', 'venv', 'dist', 'build', '.next', '__pycache__', '.pytest_cache', 'coverage', '.ssh', '.aws', 'var'])
 const excludedNames = new Set(['.ds_store', '.npmrc', '.pypirc', 'credentials', 'credentials.json', 'secrets.json', 'id_rsa', 'id_ed25519'])

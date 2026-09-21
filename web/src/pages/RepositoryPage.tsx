@@ -30,6 +30,11 @@ function RepositoryWorkspace({ detail }: { detail: Detail }) {
       <div className="source-pill"><span className="dot" /><strong>真实快照</strong><span>· {snapshot?.commit_sha?.slice(0, 7) || snapshot?.revision.slice(7, 15)}</span></div>
     </div>
     {detail.snapshots.length > 1 && <label>快照版本 <select value={snapshotId} onChange={event => setSnapshotId(event.target.value)}>{detail.snapshots.map(item => <option key={item.id} value={item.id}>{item.created_at} · {item.revision.slice(0, 20)}</option>)}</select></label>}
+    {snapshot && detail.project.source_type === 'github' && <section className="snapshot-version" aria-label="GitHub 固定版本">
+      <div><strong>公开 GitHub 来源</strong><span>{detail.project.source_label}</span></div>
+      <div><strong>固定 Commit</strong><code>{snapshot.commit_sha}</code></div>
+      <p>地图扫描与运行分析共用此快照；再次导入同一 Commit 会复用源码快照，模型结果另按模型与参数隔离。</p>
+    </section>}
     {snapshot ? <SnapshotWorkspace key={snapshot.id} snapshot={snapshot} name={detail.project.name} /> : <p className="muted">此项目尚无源码快照，请返回输入页重新导入。</p>}
   </main>
 }
@@ -92,6 +97,6 @@ function SnapshotWorkspace({ snapshot, name }: { snapshot: Snapshot; name: strin
       </section>
       <TaskPanel snapshot={snapshot} onResult={run=>{setResult(run);scroll('folder-detail')}} />
     </div>
-    <p className="footnote">真实文件与 SQLite 记录 · 事实附源码位置，名称推断单独标记 · 运行窗口区分真实模型与替身验证 · 输入源码不作为程序执行。</p>
+    <p className="footnote">真实文件与 SQLite 记录 · 事实附源码位置，名称推断单独标记 · 扫描与运行共用此快照 · 输入源码不作为程序执行。</p>
   </>
 }

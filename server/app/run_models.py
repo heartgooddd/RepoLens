@@ -45,6 +45,7 @@ class Run(Record):
     model_name: str | None = None
     prompt_version: str | None = None
     model_usage: str | None = None
+    result_cache_key: str | None = None
     artifacts: list[Artifact] = Field(default_factory=list)
 
 
