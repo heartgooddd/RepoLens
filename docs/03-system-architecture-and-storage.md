@@ -1,6 +1,6 @@
 # RepoLens 系统架构与数据保存方案
 
-> 状态：M1–M5已实施（2026-09-22）；PocketFlow配方驱动表单和macOS隔离运行已接通。配合[页面蓝图](01-product-blueprint.md)和[实施路线](02-delivery-roadmap.md)使用。
+> 状态：M1–M5及M6技术交付已实施（2026-09-22）；M6真实试用0/3、反馈迭代未完成。配合[页面蓝图](01-product-blueprint.md)和[实施路线](02-delivery-roadmap.md)使用。
 
 具体开发任务和可复制提示词见 [00 创作总指南](00-creation-guide.md)：步骤 4–5 接数据库和真实地图，步骤 6–7 接运行任务。版本管理见 [04 Git 操作手册](04-git-workflow.md)。
 
@@ -133,3 +133,11 @@ RepoLens/
 - `isolation.py` 在macOS上以deny-default规则限制文件内容访问；输入只读，指定运行子目录可写，无法读取数据库和其他任务文件。自检失败拒绝启动；PocketFlow出站请求单独允许。
 - 迁移006增加配方ID/版本、规范化参数JSON和隔离方式。旧记录不回填成M5沙箱记录；新模型结果缓存绑定配方版本与全部参数。
 - 生命周期仍由Runner/监督进程管理；取消与超时清理受管进程组，保存退出码；收集前校验整个产物树。当前接入要求子进程不脱离进程组。完整边界与开发步骤见 [配方说明](10-action-recipes.md)，事实证据见 [M5验收](../evidence/m5/acceptance.md)。
+
+## 12. M6 本地交付
+
+根目录`.command`调用`scripts/`中的安装器与单机启动器。安装器从`server/pocketflow/source.json`的固定来源/Commit准备上游，按锁文件安装两个Python环境并构建web。交付启动器通过继承已绑定的127.0.0.1监听套接字启动后台；FastAPI显式启用静态挂载时从web/dist提供前端，同源API路径保持独立。开发Vite路径不变。
+
+启动器的私有控制连接使用随机令牌，只负责自己创建的后台进程；后台检测启动器异常退出后关闭。默认真实运行关闭，密钥不在命令参数/控制记录中保存。数据目录默认var，可显式指定绝对REPOLENS_DATA_DIR。
+
+`app/data_lease.py`在迁移、请求、任务和关闭期间持有数据目录排他锁；`app/backup.py`停服后持有同一锁及旧runner锁，使用SQLite backup API形成一致性副本，复制已登记快照和历史运行引用文件，校验迁移/完整性/外键/哈希。恢复不覆盖已有目录，只发布已验证的新目录。备份不含密钥、upstream、依赖、测试和临时运行目录；不是整个var无差别复制。操作和限制见[05本地安装与试用](05-local-setup-and-trial.md)。

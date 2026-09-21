@@ -1,6 +1,6 @@
 #!/bin/zsh
 # Finder launches a login-independent shell; support known macOS/user tool locations.
-export PATH="$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
+export PATH="$HOME/.local/bin:/opt/homebrew/opt/node@22/bin:/usr/local/opt/node@22/bin:/opt/homebrew/bin:/usr/local/bin:$PATH"
 cd -- "${0:A:h:h}" || exit 1
 mode="$1"
 shift

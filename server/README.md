@@ -47,7 +47,9 @@ RepoLens/var/
 
 可通过环境变量 `REPOLENS_DATA_DIR` 指定**绝对**数据目录，数据库始终命名为 `repolens.sqlite3`；省略则使用根目录 `var/`。`.env.example` 是无密钥模板。数据目录和真实开关由进程环境读取；仅模型配置器显式读取 `server/.env` 的四个模型字段，不执行 shell 或通用 dotenv。不要将数据目录指向受 Git 跟踪的源码目录。项目标签是展示名称，不应存密钥或本机绝对路径。
 
-`var/`、`.venv/`、缓存均被根目录 `.gitignore` 排除；迁移代码和依赖锁文件被跟踪。本地 Git 提交不备份数据库或快照。需要备份时先停服务，复制整个 `var/`，恢复时使用与数据库迁移版本匹配的代码。
+`var/`、`.venv/`、缓存均被根目录 `.gitignore` 排除；迁移代码和依赖锁文件被跟踪。本地 Git 提交不备份数据库或快照。M6提供停服维护工具：在server目录使用 `.venv/bin/python -m app.backup create DEST` 和 `restore BACKUP DEST`。一致性SQLite、引用文件、哈希清单与恢复校验见 [本地交付说明](../docs/05-local-setup-and-trial.md)。不要只复制数据库或连同临时目录/密钥盲目打包。
+
+交付启动器设置 `REPOLENS_SERVE_WEB=1`，后台同源提供构建后的 `web/dist`；默认手工API启动不挂载页面。服务全生命周期持有 `.data.lock`，备份维护与服务互斥。`app/data_lease.py`负责所有权，`app/backup.py`负责SQLite一致性快照、引用校验及仅新目录恢复。
 
 ## 模块与数据结构
 

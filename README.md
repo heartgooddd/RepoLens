@@ -4,6 +4,12 @@
 
 ## 从这里开始
 
+**本地使用：[首次安装、双击启停、配置密钥、备份恢复与试用](docs/05-local-setup-and-trial.md)。**
+
+macOS 安装好 Git、Python3.14、Node22.12+（22.x）后，双击根目录 **Install.command**，完成后双击 **Start.command**，打开 http://127.0.0.1:8000/；双击 **Stop.command** 停止。首次安装会从官方来源获取固定Commit的PocketFlow，并安装两个独立Python环境和前端锁定依赖，不依赖开发机器遗留的upstream。
+
+默认不开启真实模型入口。密钥写入本机 `server/.env`；需要真实运行时，停止后从根目录执行 `REPOLENS_ENABLE_REAL_RUN=1 ./Start.command`，再从页面选择并启动。启动与查看历史不调用模型。备份须停服，包含一致性SQLite及引用文件；密钥不纳入备份，恢复只允许新目录。
+
 - **下一步入口：[创作总指南](docs/00-creation-guide.md)**：按步骤推进，每一步都有可复制的 Codex 提示词、交付位置、验收条件和 Git 时机。
 - [产品与页面蓝图](docs/01-product-blueprint.md)：目标用户、页面布局、用户流程和两种运行方式。
 - [实施路线与目录操作说明](docs/02-delivery-roadmap.md)：M0–M6 里程碑、验收条件、文件夹分工和下一步操作。
@@ -12,13 +18,13 @@
 - [工作台视觉样稿](docs/mockups/01-workbench-concept.html)：可在浏览器切换输入页与工作台的设计概念，尚未连接后台；也可直接查看[输入页截图](docs/mockups/01-home-concept.png)和[工作台截图](docs/mockups/01-workbench-concept.png)。
 - [PocketFlow 第一轮解析笔记](notes/00-pocketflow-first-pass.md)：当前上游样本的静态阅读记录。
 
-当前已完成 **步骤 9：M5 已登记操作配方**。页面支持公开 GitHub 固定版本导入、真实地图、配方生成参数表单、运行日志/取消/退出码、历史结果与产物预览。首份配方是 `pocketflow-tutorial@1`；后台通过 macOS 沙箱执行固定入口，快照作为只读分析输入。见 [配方开发说明](docs/10-action-recipes.md)和 [M5 验收](evidence/m5/acceptance.md)。
+当前功能已覆盖 **M5已登记操作配方及M6本地交付**。页面支持公开 GitHub 固定版本导入、真实地图、配方生成参数表单、运行日志/取消/退出码、历史结果与产物预览。首份配方是 `pocketflow-tutorial@1`；后台通过 macOS 沙箱执行固定入口，快照作为只读分析输入。M6技术结果见 [交付验收](evidence/m6/acceptance.md)；**3位真实用户试用仍为0/3，未完成，反馈迭代未完成**，不把自动化验证当用户反馈。
 
 M3 从页面启动一次 `utils / 中文 / 3主题` 真实任务，模型 `deepseek/deepseek-v4-flash`，7次模型调用全部成功，无重试，API报告费用 **$0.0034756449**。数据库、输出、页面下载一致，后台重启后历史结果可重开。见 [真实验收与截图](evidence/m3/acceptance.md)、[实际生成索引](evidence/m3/real-output/index.md)、[任务配置与接口](docs/07-task-runner.md)。M5 沿用此实跑证据，本轮未发起付费模型请求；沙箱内 worker 与页面运行使用离线响应测试。
 
-M4 实际远程读取官方 PocketFlow，固定 Commit `05b24cbbb0fe409c5e23c9791f0342f07524ffdc`；重复导入复用同一源码快照。模型结果缓存另按模型、提示词、配方版本和全部参数隔离。远程导入不会执行仓库代码，任意远程仓库也不会自动获得真实运行能力。见 [M4验收](evidence/m4/acceptance.md)和[导入说明](docs/09-github-import.md)。下一步为M6本地交付；所有提交只保存在本机。
+M4 实际远程读取官方 PocketFlow，固定 Commit `05b24cbbb0fe409c5e23c9791f0342f07524ffdc`；重复导入复用同一源码快照。模型结果缓存另按模型、提示词、配方版本和全部参数隔离。远程导入不会执行仓库代码，任意远程仓库也不会自动获得真实运行能力。见 [M4验收](evidence/m4/acceptance.md)和[导入说明](docs/09-github-import.md)。下一步为真实试用与证据驱动反馈迭代；所有提交只保存在本机。
 
-## 启动后台
+## 开发方式：单独启动后台
 
 在另一个终端运行：
 
@@ -35,7 +41,7 @@ PocketFlow 依赖另装在 `server/pocketflow/.venv/`，固定来源、Commit、
 
 实际数据库位于被忽略的 `var/repolens.sqlite3`，迁移与模型在 `server/`，数据不会随 Git 提交保存。详细依赖、接口字段、数据目录和迁移规则见 [后台 README](server/README.md)。
 
-## 打开页面
+## 开发方式：单独打开页面
 
 在终端运行：
 
@@ -84,6 +90,7 @@ npm run test:e2e
 - `web/src/api/`：真实 API 客户端；`RepositoryPage` 展示真实工作台，演示数据继续独立保存。
 - `server/`：FastAPI、本地／GitHub导入、静态扫描、SQLite迁移、源码接口、任务与产物服务；`server/app/prompts/` 存职责补充提示词。
 - `server/pocketflow/`：固定上游版本与独立依赖环境说明、完整锁文件。
+- `scripts/` 与根目录 `.command`：可复现安装、本机服务的受控启停；不执行用户导入的源码。
 - `var/`：被忽略的数据库、快照和运行数据；不随 Git 提交。
 - `upstream/`：候选上游项目目录；PocketFlow 已下载，其余目录保持为空。
 - `notes/`：逐项目拆解笔记。

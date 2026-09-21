@@ -91,6 +91,8 @@ def test_install_stamp_detects_changed_lock(tmp_path):
 def test_finder_entry_prefers_user_tool_installation():
     entry = (ROOT / 'scripts/entry.sh').read_text()
     assert entry.index('$HOME/.local/bin') < entry.index('/opt/homebrew/bin')
+    assert '/opt/homebrew/opt/node@22/bin' in entry
+    assert '/usr/local/opt/node@22/bin' in entry
 
 
 def test_control_record_has_private_permissions(tmp_path):

@@ -16,6 +16,8 @@
 
 ## 安装与复查
 
+**从Git首次检出**：双击根目录 `Install.command`，安装器按 `source.json` 的官方HTTPS来源和固定Commit准备被忽略的upstream，再安装下列环境。不要假设其他电脑已有upstream。已有目录来源/Commit不符或存在修改时会拒绝覆盖；完整流程见 [本地安装说明](../../docs/05-local-setup-and-trial.md)。
+
 以下在 **server/** 执行；与 FastAPI 的 `server/.venv/` 分开：
 
 ```bash
@@ -53,4 +55,4 @@ git -C upstream/pocketflow-codebase-knowledge status --porcelain
 - 修正上游小主题数提示“top 5-3”，校验返回主题不超过请求值。真实参数当前固定 utils、中文、最多3主题。
 - `REPOLENS_ENABLE_REAL_RUN=1` 开启后台真实入口；还须页面明确选择并点击启动。密钥从 `server/.env` 读取，经 stdin 传子进程，不放 argv 或运行文件；原始响应与用量保存在被忽略的 `var/runs/`。
 - 每次模型请求只尝试一次，最多7次调用，失败不会自动重跑。上限和 API 见 [任务说明](../../docs/07-task-runner.md)。实际证据见 [M3 验收](../../evidence/m3/acceptance.md)。
-- 虚拟环境隔离的是依赖，不是操作系统沙箱；输入快照只作文本读取，不执行上传脚本。当前仅本机、单进程；Windows 未适配。
+- 虚拟环境隔离的是依赖；M5另外加入macOS操作系统沙箱，能力检查失败时拒绝运行。输入快照只作文本读取，不执行上传脚本。当前仅本机、单进程；Windows 未适配。
