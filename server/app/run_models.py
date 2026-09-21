@@ -17,6 +17,12 @@ class RunRequest(Record):
     scenario: Literal['success', 'failure', 'slow'] = 'success'
 
 
+class RecipeRunRequest(Record):
+    snapshot_id: UUID
+    recipe_id: str = Field(min_length=1, max_length=80)
+    parameters: dict = Field(default_factory=dict)
+
+
 class Artifact(Record):
     id: str
     run_id: str
@@ -46,6 +52,10 @@ class Run(Record):
     prompt_version: str | None = None
     model_usage: str | None = None
     result_cache_key: str | None = None
+    recipe_id: str | None = None
+    recipe_version: str | None = None
+    parameters_json: str | None = None
+    isolation_kind: str | None = None
     artifacts: list[Artifact] = Field(default_factory=list)
 
 

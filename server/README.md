@@ -1,6 +1,6 @@
 # RepoLens 后台：真实仓库地图、GitHub 导入与任务服务
 
-步骤4–8已完成：SQLite、受限目录／公开GitHub导入、静态扫描、源码读取、持久化任务和受控OpenRouter运行。GitHub导入先固定Commit再读取受限归档；远程源码不会执行。默认仍为无模型替身，显式开启后可选择已登记的真实模式。
+步骤4–9已完成：SQLite、受限目录／公开GitHub导入、源码地图、持久化任务、版本化配方和macOS沙箱。GitHub导入先固定Commit再读取受限归档；远程源码仅作输入。正式配方当前只有PocketFlow教程，默认不开启模型运行。详见 [配方API、隔离和开发说明](../docs/10-action-recipes.md)。
 
 ## 环境与安装
 
@@ -65,6 +65,8 @@ RepoLens/var/
 | `migrations/002_snapshot_files.sql` | 文件清单与名称推断字段，保留旧数据 |
 | `migrations/003_runs.sql`、`004_run_model.sql` | 任务、产物与模型用量元数据 |
 | `migrations/005_github_cache.sql` | GitHub来源／快照缓存、导入任务和模型结果缓存键 |
+| `migrations/006_action_recipes.sql` | 配方 ID/版本、规范化参数与隔离方式；保留旧记录 |
+| `app/recipes/`、`app/isolation.py` | 代码登记的配方、参数模式、依赖检查与deny-default沙箱 |
 | `app/runner.py`、`bounded_llm.py`、`pocketflow/worker.py` | 固定入口、生命周期、受控模型调用与上游适配 |
 | `tests/` | HTTP 合约、持久化、迁移及真实进程重启验证 |
 
@@ -74,7 +76,7 @@ RepoLens/var/
 
 ### 后续迁移规则
 
-1. 后续从 `006_<name>.sql` 开始新增连续版本，版本连续；不要修改已执行的迁移。
+1. 后续从 `007_<name>.sql` 开始新增连续版本，版本连续；不要修改已执行的迁移。
 2. 每条完整 SQL 语句以分号结束，最后一条结束后不添加独立注释；一行不写多条语句。不要在文件中写 `BEGIN/COMMIT/ROLLBACK`、`VACUUM` 等自行控制事务的语句。
 3. 执行器在一个 `BEGIN IMMEDIATE` 事务中核对版本与 SHA-256、执行待应用的 SQL 并写 `schema_migrations`。SQL 或校验失败会回滚并阻止服务启动；不会删库重建。
 4. 修改过的历史迁移、缺失版本、比代码新的数据库会被拒绝；恢复匹配代码或补充正确迁移。当前不提供自动降级。
@@ -91,7 +93,7 @@ RepoLens/var/
 无参数。实际读取迁移表和项目表，成功 `200`：
 
 ```json
-{"status":"ok","database":"ok","schema_version":5}
+{"status":"ok","database":"ok","schema_version":6}
 ```
 
 数据库不可用返回 `503 {"detail":"Database unavailable"}`。启动迁移失败时服务不进入就绪状态。此接口检查元数据库可读，不代表源码文件存在或模型可运行。
@@ -236,4 +238,4 @@ curl 'http://127.0.0.1:8000/api/projects?limit=20&offset=0'
 
 完整字段、模式限制、价格／调用上限见 [任务说明](../docs/07-task-runner.md)；本机模型配置见 [OpenRouter 设置](../docs/08-openrouter-setup.md)。默认模式 `stub`，开启 `REPOLENS_ENABLE_REAL_RUN=1` 后允许请求 `mode=pocketflow`，仅固定上游快照 utils、中文、最多3主题。API不接受浏览器传入密钥或模型地址。`GET /api/runner` 返回配置布尔状态，不回传密钥。
 
-迁移当前版本5，模型字段和旧记录的结果缓存键可空。真实结果缓存键包含snapshot_id、快照版本、模型、提示词和全部分析参数；只复用同一快照并在复用前重验产物。模拟模型验证使用假密钥和MockTransport，不消耗模型额度。真实验收证据见 [M3](../evidence/m3/acceptance.md)，缓存边界见 [M4](../evidence/m4/acceptance.md)。
+迁移当前版本6，旧记录的配方身份、参数JSON与隔离字段可空。新增 `GET /api/recipes`，新页面向 `POST /api/runs` 提交 `recipe_id/snapshot_id/parameters`；旧真实请求映射到同一受沙箱约束配方。结果缓存包含snapshot_id、配方ID/版本/所有参数、模型与提示词；复用前重验产物。模拟模型验证使用假密钥和MockTransport，不消耗模型额度。真实证据见 [M3](../evidence/m3/acceptance.md)，最新记录见 [M5](../evidence/m5/acceptance.md)。

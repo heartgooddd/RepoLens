@@ -52,6 +52,9 @@ def isolated_environment(run_dir: Path) -> dict[str, str]:
     home = run_dir / 'home'
     home.mkdir(exist_ok=True)
     return {'PATH': os.defpath, 'HOME': str(home), 'LANG': 'en_US.UTF-8', 'PYTHONUNBUFFERED': '1',
+            'TMPDIR': str(run_dir / 'tmp'),
+            # --dir does not use GitPython; disable its import-time git discovery.
+            'GIT_PYTHON_GIT_EXECUTABLE': '/nonexistent/repolens-git-disabled', 'GIT_PYTHON_REFRESH': 'quiet',
             'PYTHONDONTWRITEBYTECODE': '1', 'PYTHON_DOTENV_DISABLED': '1', 'LOG_DIR': str(run_dir / 'provider-logs')}
 
 

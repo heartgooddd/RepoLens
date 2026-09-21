@@ -102,7 +102,7 @@ test('真实模式缺少密钥时禁用启动并支持重新读取配置', async
   await expect(page.getByLabel('分析范围', { exact: true })).toHaveValue('utils')
   await expect(page.getByLabel('分析范围', { exact: true })).toBeDisabled()
   await expect(page.getByLabel('任务语言')).toBeDisabled()
-  await expect(page.getByLabel('核心主题数').locator('option')).toHaveCount(2)
+  await expect(page.getByLabel('核心主题数')).toHaveAttribute('max','3')
   await expect(page.getByRole('button', { name: '启动真实任务' })).toBeDisabled()
   await expect(page.getByText('模型配置不齐全', { exact: false })).toBeVisible()
   await page.getByRole('button', { name: '重新读取', exact: true }).click()

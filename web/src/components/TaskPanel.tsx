@@ -2,6 +2,9 @@ import { useEffect, useState } from 'react'
 import type { Snapshot } from '../api/projects'
 import { active, cancelRun, createRun, getLogs, getRun, getRuns, getRunnerConfiguration, runLabel } from '../api/runs'
 import type { Run, RunParameters, RunnerConfiguration } from '../api/runs'
+import {createRecipeRun, defaults, getRecipes} from '../api/recipes'
+import type {Recipe, RecipeParameters} from '../api/recipes'
+import {RecipeFields} from './RecipeFields'
 
 
 const stages: Record<string,string> = {queued:'等待启动', preparing:'校验快照', FetchRepo:'读取文件', IdentifyAbstractions:'提取主题', AnalyzeRelationships:'分析关系', OrderChapters:'排列章节', WriteChapters:'写入章节', CombineTutorial:'整理产物', complete:'完成', FolderResponsibilities:'补充职责与引用'}
@@ -10,6 +13,11 @@ export function TaskPanel({snapshot, onResult}: {snapshot:Snapshot; onResult:(ru
   const [parameters,setParameters]=useState<RunParameters>({snapshot_id:snapshot.id, language:'zh',topics:3,scope:snapshot.folder_cards.some(c=>c.path==='utils')?'utils':'.',scenario:'success'})
   const [configuration,setConfiguration]=useState<RunnerConfiguration>()
   const real=parameters.mode==='pocketflow'
+  const [recipes,setRecipes]=useState<Recipe[]>([])
+  const [recipeId,setRecipeId]=useState('')
+  const [recipeValues,setRecipeValues]=useState<RecipeParameters>({})
+  const recipe=recipes.find(item=>item.id===recipeId)
+  const compatible=!!recipe&&(!recipe.input.commit||snapshot.commit_sha===recipe.input.commit)&&(!recipeValues.scope||snapshot.folder_cards.some(card=>card.path===recipeValues.scope))
   const [history,setHistory]=useState<Run[]>([])
   const [total,setTotal]=useState(0)
   const [selected,setSelected]=useState('')
@@ -22,6 +30,7 @@ export function TaskPanel({snapshot, onResult}: {snapshot:Snapshot; onResult:(ru
   useEffect(()=>{
     const controller=new AbortController()
     getRunnerConfiguration(controller.signal).then(setConfiguration).catch(error=>{if(!controller.signal.aborted)setError(error.message)})
+    getRecipes(controller.signal).then(data=>{setRecipes(data.items);setRecipeId(current=>current||data.items[0]?.id||'');setRecipeValues(current=>Object.keys(current).length?current:data.items[0]?defaults(data.items[0]):{})}).catch(error=>{if(!controller.signal.aborted){setRecipes([]);setError(error.message)}})
     getRuns(snapshot.id,0,controller.signal).then(data=>{setHistory(data.items);setTotal(data.total);setSelected(current=>current||data.items[0]?.id||'');setLoaded(true)}).catch(error=>{if(!controller.signal.aborted)setError(error.message)})
     return ()=>controller.abort()
   },[snapshot.id,retry])
@@ -46,7 +55,7 @@ export function TaskPanel({snapshot, onResult}: {snapshot:Snapshot; onResult:(ru
   },[selected,retry])
   async function start(){
     setBusy(true);setError('')
-    try{const next=await createRun(parameters);setHistory(items=>[next,...items]);setTotal(value=>value+1);setSelected(next.id)}catch(error){setError(error instanceof Error?error.message:'启动失败')}finally{setBusy(false)}
+    try{const next=real?await createRecipeRun(recipeId,snapshot.id,recipeValues):await createRun(parameters);setHistory(items=>[next,...items.filter(item=>item.id!==next.id)]);setTotal(value=>history.some(item=>item.id===next.id)?value:value+1);setSelected(next.id)}catch(error){setError(error instanceof Error?error.message:'启动失败')}finally{setBusy(false)}
   }
   async function cancel(){
     if(!run)return
@@ -57,19 +66,23 @@ export function TaskPanel({snapshot, onResult}: {snapshot:Snapshot; onResult:(ru
     <div className="run-header"><h2 className="small-title">运行窗口</h2><span className="tag amber">{real?'真实运行 · 调用模型':'替身验证 · 无模型'}</span></div>
     <h3 className="run-title">生成项目导览</h3><p className="run-subtitle">{real?'将 utils 快照发送到 OpenRouter 生成中文导览，最多3主题。模型结果需要核对。':'真实任务进程与本机保存，输出为固定测试内容。当前不发送模型请求。'}</p>
     {configuration?.real_enabled&&<p className="muted">模型：{configuration.model.model||'未配置'} · 密钥{configuration.model.api_key_configured?'已配置':'未配置'}</p>}
-    <fieldset disabled={busy||active(run)||!loaded}>
-      {configuration?.real_enabled&&<div className="field"><label htmlFor="task-mode">运行模式</label><select id="task-mode" value={parameters.mode||'stub'} onChange={e=>setParameters({...parameters,mode:e.target.value as 'stub'|'pocketflow',scope:'utils',language:'zh',topics:3,scenario:'success'})}><option value="stub">替身验证（无模型）</option><option value="pocketflow" disabled={!snapshot.commit_sha||!snapshot.folder_cards.some(c=>c.path==='utils')}>真实 PocketFlow</option></select></div>}
+    {recipe&&<div className="snapshot-meta"><div className="field"><label htmlFor="task-recipe">已登记操作</label><select id="task-recipe" value={recipeId} disabled={busy||active(run)} onChange={e=>{const next=recipes.find(item=>item.id===e.target.value)!;setRecipeId(next.id);setRecipeValues(defaults(next))}}>{recipes.map(item=><option value={item.id} key={item.id}>{item.name}</option>)}</select></div><code>{recipe.id}@{recipe.version}</code><p>{recipe.verification}</p><p>隔离：{recipe.isolation.kind} · {recipe.isolation.available?'可用':'不可用'} · 超时：{recipe.timeout_seconds} 秒</p><details><summary>入口与产物</summary><p>{recipe.entry.upstream} · {recipe.entry.commit.slice(0,12)}</p><p>入口：{recipe.entry.path}</p><p>依赖：{recipe.environment.ready?'已就绪':'未就绪'}</p><p>产物：{recipe.artifacts.root}/{recipe.artifacts.required.join('、')}</p></details></div>}
+    <form onSubmit={event=>{event.preventDefault();void start()}}><fieldset disabled={busy||active(run)||!loaded}>
+      {recipe&&<div className="field"><label htmlFor="task-mode">运行模式</label><select id="task-mode" value={parameters.mode||'stub'} onChange={e=>setParameters({...parameters,mode:e.target.value as 'stub'|'pocketflow',scope:'utils',language:'zh',topics:3,scenario:'success'})}><option value="stub">替身验证（无模型）</option><option value="pocketflow">真实 PocketFlow</option></select></div>}
+      {real&&recipe?<RecipeFields recipe={recipe} values={recipeValues} onChange={setRecipeValues}/>:<>
       <div className="field"><label htmlFor="task-scope">分析范围</label><select disabled={real} id="task-scope" value={parameters.scope} onChange={e=>setParameters({...parameters,scope:e.target.value})}>{snapshot.folder_cards.map(c=><option key={c.id} value={c.path}>{c.path==='.'?'整个快照':c.path}</option>)}</select></div>
       <div className="field"><label htmlFor="task-language">任务语言</label><select disabled={real} id="task-language" value={parameters.language} onChange={e=>setParameters({...parameters,language:e.target.value as 'zh'|'en'})}><option value="zh">中文</option><option value="en">English</option></select></div>
       <div className="field"><label htmlFor="task-topics">核心主题数</label><select id="task-topics" value={parameters.topics} onChange={e=>setParameters({...parameters,topics:Number(e.target.value)})}>{(real?[1,3]:[1,3,5,10]).map(n=><option key={n} value={n}>{n}</option>)}</select></div>
       {!real&&<div className="field"><label htmlFor="task-scenario">替身验证情境</label><select id="task-scenario" value={parameters.scenario} onChange={e=>setParameters({...parameters,scenario:e.target.value as RunParameters['scenario']})}><option value="success">成功</option><option value="failure">失败</option><option value="slow">慢速（用于取消验证）</option></select></div>}
-      <button className="primary full-width" disabled={real&&!configuration?.real_ready} onClick={()=>void start()}>{real?'启动真实任务':'启动替身任务'}</button>
-      {real&&!configuration?.real_ready&&<p className="error-note">模型配置不齐全，请检查本机配置。<button className="text-button" onClick={()=>setRetry(v=>v+1)}>重新读取</button></p>}
-    </fieldset>
+      </>}
+      <button type="submit" className="primary full-width" disabled={real&&(!recipe?.ready||!configuration?.real_ready||!compatible)}>{real?'启动真实任务':'启动替身任务'}</button>
+      {real&&(!recipe?.ready||!configuration?.real_ready||!compatible)&&<div className="error-note">{recipe?.unavailable_reasons.map(reason=><p key={reason}>{reason}</p>)}{!configuration?.real_ready&&!recipe?.unavailable_reasons.length&&<p>模型配置不齐全，请检查本机配置。</p>}{!compatible&&<p>此快照不符合配方当前支持范围。</p>}<button type="button" className="text-button" onClick={()=>setRetry(v=>v+1)}>重新读取</button></div>}
+    </fieldset></form>
     {error&&<p role="alert" className="error-note">{error} <button className="text-button" onClick={()=>{setError('');setRetry(v=>v+1)}}>重新读取</button></p>}
     {run&&<div className={`task-state state-${run.status}`}>
       <p role="status"><strong>{runLabel(run)}</strong> · {stages[run.stage]||run.stage}</p>
       <p className="muted">{run.mode==='pocketflow'?`模型：${run.model_name} · `:'替身 · '}本次参数：{run.scope} · {run.language} · {run.topics} 个主题</p>
+      <p className="muted">{run.recipe_id?`${run.recipe_id}@${run.recipe_version} · ${run.isolation_kind}`:'旧版固定入口记录'} · 退出码：{run.exit_code??'尚未退出'}</p>
       {run.error&&<p className="error-note">{run.error}</p>}
       {active(run)&&<button className="secondary full-width" disabled={busy||run.status==='cancelling'} onClick={()=>void cancel()}>取消任务</button>}
       {run.status==='succeeded'&&<button className="primary full-width" onClick={()=>onResult(run)}>{run.mode==='stub'?'查看替身结果':'查看真实结果'}</button>}

@@ -1,4 +1,4 @@
-"""Local snapshot import and read APIs; execution remains a later milestone."""
+"""Local snapshot APIs and registered isolated actions."""
 
 import sqlite3
 from contextlib import asynccontextmanager
@@ -41,7 +41,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             await github_importer.close()
             await runner.close()
 
-    app = FastAPI(title="RepoLens API", version="0.4.0", lifespan=lifespan)
+    app = FastAPI(title="RepoLens API", version="0.5.0", lifespan=lifespan)
     app.state.runner = runner
     app.state.github_importer = github_importer
     app.include_router(routes(settings, runner))

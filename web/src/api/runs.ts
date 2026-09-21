@@ -1,4 +1,5 @@
 import { request } from './projects'
+export interface Run {recipe_id:string|null; recipe_version:string|null; parameters_json:string|null; isolation_kind:string|null}
 export interface Artifact { id: string; run_id: string; path: string; size_bytes: number; sha256: string }
 export interface Run { id: string; snapshot_id: string; mode: 'stub' | 'pocketflow'; status: 'queued' | 'running' | 'cancelling' | 'cancelled' | 'succeeded' | 'failed' | 'interrupted'; stage: string; language: string; topics: number; scope: string; scenario: string; created_at: string; model_provider: string | null; model_name: string | null; model_usage: string | null; result_cache_key: string | null; error: string | null; exit_code: number | null; artifacts: Artifact[] }
 export interface RunParameters { mode?: 'stub' | 'pocketflow'; snapshot_id: string; language: 'zh' | 'en'; topics: number; scope: string; scenario: 'success' | 'failure' | 'slow' }

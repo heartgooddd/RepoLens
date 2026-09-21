@@ -1,0 +1,40 @@
+import {test, expect} from '@playwright/test'
+
+test('已登记配方从服务端生成表单并用离线模型完成运行', async ({page},info) => {
+  const response = await page.request.post('/api/projects/import', {data:{source:'builtin'}})
+  const detail = (await response.json()).detail
+  await page.goto(`/#/projects/${detail.project.id}`)
+  await expect(page.getByLabel('已登记操作')).toBeVisible()
+  await expect(page.getByText('pocketflow-tutorial@1', {exact:true})).toBeVisible()
+  await page.getByLabel('运行模式', {exact:true}).selectOption('pocketflow')
+  await expect(page.getByLabel('任务语言')).toHaveValue('zh')
+  await expect(page.getByLabel('分析范围', {exact:true})).toHaveValue('utils')
+  await expect(page.getByLabel('核心主题数')).toHaveAttribute('max','3')
+  await expect(page.getByText(/隔离：macos-seatbelt/)).toBeVisible()
+  await expect(page.getByText(/超时：900 秒/)).toBeVisible()
+  await expect(page.getByRole('button',{name:'启动真实任务'})).toBeEnabled()
+  await page.getByLabel('核心主题数').fill('2')
+  const submitted=page.waitForRequest(request=>request.url().endsWith('/api/runs')&&request.method()==='POST')
+  await page.getByRole('button',{name:'启动真实任务'}).click()
+  expect((await submitted).postDataJSON()).toEqual({recipe_id:'pocketflow-tutorial',snapshot_id:detail.snapshots[0].id,parameters:{scope:'utils',language:'zh',topics:2}})
+  await expect(page.getByRole('status')).toContainText('真实生成完成')
+  await expect(page.getByText(/退出码：0/)).toBeVisible()
+  await page.getByRole('button',{name:'查看真实结果'}).click()
+  await expect(page.getByRole('article',{name:'生成 Markdown 预览'})).toContainText('固定测试概要')
+  await page.screenshot({path:info.outputPath('recipe-offline-result.png'),fullPage:true})
+  await page.reload()
+  await expect(page.getByRole('status')).toContainText('真实生成完成')
+  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true)
+})
+
+test('配方服务失败时禁止启动，重新读取可恢复表单', async ({page}) => {
+  const response = await page.request.post('/api/projects/import', {data:{source:'builtin'}})
+  const detail = (await response.json()).detail
+  await page.route('**/api/recipes', route=>route.fulfill({status:503,json:{detail:{message:'配方服务暂不可用'}}}))
+  await page.goto(`/#/projects/${detail.project.id}`)
+  await expect(page.getByRole('alert')).toContainText('配方服务暂不可用')
+  await expect(page.getByRole('button',{name:'启动真实任务'})).toHaveCount(0)
+  await page.unroute('**/api/recipes')
+  await page.getByRole('button',{name:'重新读取',exact:true}).click()
+  await expect(page.getByLabel('已登记操作')).toBeVisible()
+})

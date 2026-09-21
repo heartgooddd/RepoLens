@@ -125,7 +125,7 @@ h1 { font-size: clamp(28px, 3vw, 39px); letter-spacing: -.055em; line-height: 1.
 fieldset { padding: 0; margin: 0; border: 0; min-width: 0; }
 .field { margin-bottom: 16px; }
 .field label, .field-label { display: block; color: #52695f; font-weight: 700; font-size: 11px; margin-bottom: 8px; }
-.field select, .field .value { display: block; width: 100%; min-height: 42px; padding: 11px 12px; border: 1px solid #dce6df; border-radius: 9px; background: #fbfcfb; color: #2a4540; font-size: 12px; }
+.field select, .field input, .field .value { display: block; width: 100%; min-height: 42px; padding: 11px 12px; border: 1px solid #dce6df; border-radius: 9px; background: #fbfcfb; color: #2a4540; font-size: 12px; }
 .field select:disabled { opacity: .7; }
 .run-button { width: 100%; }
 .run-foot { font-size: 11px; color: var(--muted); line-height: 1.65; text-align: center; margin: 12px 0 0; }

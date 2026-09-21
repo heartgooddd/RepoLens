@@ -1,6 +1,6 @@
 # RepoLens 系统架构与数据保存方案
 
-> 状态：M1–M4已实施（2026-09-21）；固定PocketFlow真实生成与公开GitHub固定Commit导入均已验收，保留明确标识的替身模式。配合[页面蓝图](01-product-blueprint.md)和[实施路线](02-delivery-roadmap.md)使用。
+> 状态：M1–M5已实施（2026-09-22）；PocketFlow配方驱动表单和macOS隔离运行已接通。配合[页面蓝图](01-product-blueprint.md)和[实施路线](02-delivery-roadmap.md)使用。
 
 具体开发任务和可复制提示词见 [00 创作总指南](00-creation-guide.md)：步骤 4–5 接数据库和真实地图，步骤 6–7 接运行任务。版本管理见 [04 Git 操作手册](04-git-workflow.md)。
 
@@ -117,7 +117,7 @@ RepoLens/
 - 运行状态、阶段、参数和索引在 SQLite；日志与 Markdown 在 `var/runs/`。取消停止进程组，后台重启将遗留活动任务标记 interrupted，不续跑。成功状态与产物登记在同一事务中提交。
 - React 轮询任务和增量日志，刷新后重开历史。Markdown 禁止原始 HTML，外部图片不加载，章节只允许切换本次已登记产物。下载与读取都核对内容哈希。
 - 职责提示词在 `server/app/prompts/` 版本管理；引用检查同一快照的文件、行号、原文。匹配也只标推断，不匹配标待核实，不覆盖原始事实。真实任务末尾调用版本化提示词，校验结果显示于页面；异常验证使用模拟响应，不消耗真实模型额度。
-- 当前是本机单进程、单活动任务，没有分布式队列或操作系统沙箱。具体 API／配置见 [任务服务说明](07-task-runner.md)，真实证据见 [步骤7验收](../evidence/m3/acceptance.md)，固定输出历史见 [步骤6记录](../evidence/m3/step-6-check.md)。
+- M3当时是本机单进程、单活动任务，没有操作系统沙箱；M5为登记配方新增了macOS沙箱，仍无分布式队列。具体 API／配置见 [任务服务说明](07-task-runner.md)，真实证据见 [步骤7验收](../evidence/m3/acceptance.md)，固定输出历史见 [步骤6记录](../evidence/m3/step-6-check.md)。
 
 ## 10. M4 公开 GitHub 导入与缓存
 
@@ -125,3 +125,11 @@ RepoLens/
 - GitHub解析／归档下载受30秒网络时限约束；归档另按压缩大小、条目、解包总量和保留文件数／大小约束。逐成员验证唯一根、相对路径、类型及冲突，从不执行仓库文件。规则见 [M4说明](09-github-import.md)。
 - `github_sources + github_snapshot_cache` 是源码缓存：同仓库同 Commit 返回同一 snapshot；新 Commit 在同一 project 下新增 snapshot。`runs.result_cache_key` 是结果缓存：只有相同快照、模型、提示词和全部参数的成功真实结果才可复用，且复用前重验产物哈希。
 - 地图扫描、源码证据和运行任务继续只接受登记的 snapshot_id；远程来源没有新增可执行入口。实际远程 PocketFlow、错误和版本变化见 [M4验收](../evidence/m4/acceptance.md)。
+
+## 11. M5 已登记操作与隔离
+
+- `recipes/definition.py` 定义不可变配方契约，`recipes/pocketflow.py` 声明首个真实入口、严格参数、依赖检查和产物；正式清单由产品代码维护。测试注册表可注入私有夹具，未增加第三方支持声明。
+- `GET /api/recipes` 提供安全描述和就绪状态；React `RecipeFields` 从参数模式生成控件，创建请求只含配方ID、快照ID和参数。可信入口与用户快照始终分别管理。
+- `isolation.py` 在macOS上以deny-default规则限制文件内容访问；输入只读，指定运行子目录可写，无法读取数据库和其他任务文件。自检失败拒绝启动；PocketFlow出站请求单独允许。
+- 迁移006增加配方ID/版本、规范化参数JSON和隔离方式。旧记录不回填成M5沙箱记录；新模型结果缓存绑定配方版本与全部参数。
+- 生命周期仍由Runner/监督进程管理；取消与超时清理受管进程组，保存退出码；收集前校验整个产物树。当前接入要求子进程不脱离进程组。完整边界与开发步骤见 [配方说明](10-action-recipes.md)，事实证据见 [M5验收](../evidence/m5/acceptance.md)。

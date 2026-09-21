@@ -12,11 +12,11 @@
 - [工作台视觉样稿](docs/mockups/01-workbench-concept.html)：可在浏览器切换输入页与工作台的设计概念，尚未连接后台；也可直接查看[输入页截图](docs/mockups/01-home-concept.png)和[工作台截图](docs/mockups/01-workbench-concept.png)。
 - [PocketFlow 第一轮解析笔记](notes/00-pocketflow-first-pass.md)：当前上游样本的静态阅读记录。
 
-当前已完成 **步骤 8：M4 公开 GitHub 导入**。页面已支持公开 GitHub 仓库 URL、默认分支 Commit 固定、受限快照读取、导入进度／错误、版本地图，以及 M3 的固定入口任务、日志、取消、历史结果、Markdown预览和下载；仍保留独立演示和无模型替身验证。
+当前已完成 **步骤 9：M5 已登记操作配方**。页面支持公开 GitHub 固定版本导入、真实地图、配方生成参数表单、运行日志/取消/退出码、历史结果与产物预览。首份配方是 `pocketflow-tutorial@1`；后台通过 macOS 沙箱执行固定入口，快照作为只读分析输入。见 [配方开发说明](docs/10-action-recipes.md)和 [M5 验收](evidence/m5/acceptance.md)。
 
-本次从页面仅启动一次 `utils / 中文 / 3主题` 真实任务，模型 `deepseek/deepseek-v4-flash`，7次模型调用全部成功，无重试，API报告费用 **$0.0034756449**。数据库、输出、页面下载一致，后台重启后历史结果可重开。见 [真实验收与截图](evidence/m3/acceptance.md)、[实际生成索引](evidence/m3/real-output/index.md)、[任务配置与接口](docs/07-task-runner.md)。
+M3 从页面启动一次 `utils / 中文 / 3主题` 真实任务，模型 `deepseek/deepseek-v4-flash`，7次模型调用全部成功，无重试，API报告费用 **$0.0034756449**。数据库、输出、页面下载一致，后台重启后历史结果可重开。见 [真实验收与截图](evidence/m3/acceptance.md)、[实际生成索引](evidence/m3/real-output/index.md)、[任务配置与接口](docs/07-task-runner.md)。M5 沿用此实跑证据，本轮未发起付费模型请求；沙箱内 worker 与页面运行使用离线响应测试。
 
-M4 实际远程读取官方 PocketFlow，固定 Commit `05b24cbbb0fe409c5e23c9791f0342f07524ffdc`；重复导入复用同一源码快照。模型结果缓存另按模型、提示词和参数隔离。远程导入不会执行仓库代码，任意远程仓库也不会自动获得真实运行能力。见 [M4验收](evidence/m4/acceptance.md)和[导入说明](docs/09-github-import.md)。下一步为M5；所有提交只保存在本机。
+M4 实际远程读取官方 PocketFlow，固定 Commit `05b24cbbb0fe409c5e23c9791f0342f07524ffdc`；重复导入复用同一源码快照。模型结果缓存另按模型、提示词、配方版本和全部参数隔离。远程导入不会执行仓库代码，任意远程仓库也不会自动获得真实运行能力。见 [M4验收](evidence/m4/acceptance.md)和[导入说明](docs/09-github-import.md)。下一步为M6本地交付；所有提交只保存在本机。
 
 ## 启动后台
 
@@ -72,7 +72,7 @@ npm run build
 npm run test:e2e
 ```
 
-构建命令同时检查 TypeScript，产物位于被忽略的 `web/dist/`。浏览器测试使用本机 Google Chrome，自动启动隔离前后端；测试数据位于 `var/tests/`，不修改开发数据库。其他电脑若未安装 Chrome，可先运行 `npx playwright install chrome`。当前验证见 [M4验收](evidence/m4/acceptance.md)；M3真实运行、M2地图和M1演示证据仍分别保留在各阶段目录。
+构建命令同时检查 TypeScript，产物位于被忽略的 `web/dist/`。浏览器测试使用本机 Google Chrome，自动启动隔离前后端及无网络模型响应夹具；测试数据位于 `var/tests/`，不修改开发数据库。其他电脑若未安装 Chrome，可先运行 `npx playwright install chrome`。当前验证见 [M5验收](evidence/m5/acceptance.md)；历史阶段证据仍分别保留。
 
 构建后如需检查生产产物，运行 `npm run preview` 并打开 http://127.0.0.1:4173/ 。
 

@@ -2,6 +2,8 @@
 
 2026-09-21。支持明确区分的 **替身验证** 与 **真实 PocketFlow** 模式。步骤 7 的实际任务、截图和验收边界见 [验收记录](../evidence/m3/acceptance.md)。
 
+2026-09-22 更新：真实入口已登记为 `pocketflow-tutorial@1`；新页面从配方生成表单，通过macOS沙箱运行。本文的旧请求格式仍兼容且受同样隔离约束；新增API/字段、配方扩展与平台边界以 [M5配方说明](10-action-recipes.md)为准。M3历史记录不回写为沙箱执行记录。
+
 ## 1. 启动和操作
 
 前后台启动命令见 [根 README](../README.md)。后台使用 `server/.venv`，PocketFlow 另有 `server/pocketflow/.venv`，安装、来源和版本见 [依赖说明](../server/pocketflow/README.md)。

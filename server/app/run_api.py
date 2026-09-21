@@ -7,7 +7,7 @@ from fastapi.responses import Response
 from .config import Settings
 from .db import connect
 from .import_policy import fail, validate_path
-from .run_models import ACTIVE, LogSlice, Run, RunRequest
+from .run_models import ACTIVE, LogSlice, Run, RunRequest, RecipeRunRequest
 from .run_store import get_run, list_runs
 from .runner import Runner, MAX_ARTIFACT
 
@@ -25,8 +25,12 @@ def routes(settings: Settings, runner: Runner) -> APIRouter:
     def configuration():
         return runner.configuration()
 
+    @api.get('/api/recipes')
+    def recipes():
+        return runner.recipe_catalog()
+
     @api.post('/api/runs', response_model=Run, status_code=201)
-    async def create(body: RunRequest, response: Response):
+    async def create(body: RecipeRunRequest | RunRequest, response: Response):
         run, cache_hit = runner.create(body)
         response.status_code = 200 if cache_hit else 201
         response.headers['X-RepoLens-Result-Cache'] = 'hit' if cache_hit else 'miss'
