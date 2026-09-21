@@ -4,7 +4,7 @@
 
 ## 两条独立状态
 
-- 技术交付：干净检出安装、固定上游准备、双击入口、页面运行和数据恢复已验证；回归及审查记录如下。
+- 技术交付：**通过**。干净检出安装、固定上游准备、双击入口、页面运行和数据恢复已验证；回归及审查记录如下。
 - 3位真实目标用户试用：**0/3，未完成**。尚无真实反馈，反馈迭代未完成。[观察模板](trial-observation-template.md)为空模板，不是试用证据。
 
 ## 环境与来源
@@ -46,7 +46,7 @@ macOS26.6.2（25G83）、Apple Silicon arm64；Python3.14.6、Node22.23.0/npm10.
 
 | 检查 | 命令/结果 |
 |---|---|
-| 完整后端 | `server/.venv/bin/python -m pytest -q server/tests --tb=short`：135 passed；2条既有Starlette测试依赖弃用警告 |
+| 完整后端 | `server/.venv/bin/python -m pytest -q server/tests --tb=short`：合并后137 passed（含最终venv校验回归）；2条既有Starlette测试依赖弃用警告 |
 | 构建 | `cd web && npm run build`：成功，192 modules |
 | 完整浏览器回归 | `cd web && npm run test:e2e`：26 passed，桌面/窄屏各13项；仅既有NO_COLOR/FORCE_COLOR提示 |
 | 本地工具收尾 | `server/.venv/bin/python -m pytest -q server/tests/test_local_tools.py`：19 passed；含Homebrew Node22路径及现有venv错误Python版本拒绝 |
@@ -68,3 +68,7 @@ macOS26.6.2（25G83）、Apple Silicon arm64；Python3.14.6、Node22.23.0/npm10.
 安装脚本不自动安装系统包，不运行上游安装脚本，不覆盖有修改的上游；Python锁为精确版本但尚不带包哈希。备份是未加密目录，默认最大8GiB/100000文件，可能含私有源码和模型输出，需妥善保管。当前迁移版本须匹配；服务停服、手工不改数据是文件一致性前提。无多用户认证，不对公网提供服务；macOS沙箱仍受M5登记入口/进程组准入限制。
 
 原数据及验收副本保留在被忽略的var/，密钥不提交。G2精确提交技术代码、文档和筛选截图；技术通过后G3快进合并本地main、保留阶段分支，不push。真实试用与反馈迭代继续未完成。
+
+### G3 回执
+
+本地main已从`4795ef9`快进至实现与审查修正提交`0250f0c`；合并后完整后端137 passed，最终安装后的主目录启动/健康检查/停止再次通过。原数据仍为2项目、3任务，无新模型任务。代码树与阶段分支一致；本回执仅补记文档。服务已停止，工作区干净，阶段分支保留，未推送远程。

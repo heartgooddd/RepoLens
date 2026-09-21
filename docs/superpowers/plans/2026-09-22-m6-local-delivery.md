@@ -34,8 +34,10 @@
 - [x] Start/stop using .command entry, verify browser project import and stub run; back up actual saved data while stopped and restore to new directory, open M3 historical result/source in browser without model call.
 - [x] Write `docs/05-local-setup-and-trial.md`, `evidence/m6/acceptance.md`, `evidence/m6/trial-observation-template.md`; update README/guide/roadmap with separate technical and user-trial statuses.
 - [x] Run full backend tests, frontend build and browser critical flows; apply verification-before-completion, independent spec/standards code review and focused fixes.
-- [ ] G2 commit scoped evidence/docs, G3 ff-only merge to main, retain phase branch, no push; record post-merge smoke and 0/3 real users.
+- [x] G2 commit scoped evidence/docs, G3 ff-only merge to main, retain phase branch, no push; record post-merge smoke and 0/3 real users.
 
 ## Verification checkpoint
+
+Final receipt: G3 fast-forwarded main to implementation/review-fix commit `0250f0c`; post-merge full backend 137 passed, final main-directory .command start/health/stop passed. Final review issues are closed. Technical delivery complete; real trial remains 0/3 and feedback iteration remains incomplete. The following paragraph records the earlier pre-merge checkpoint.
 
 2026-09-22: implementation and independent task reviews complete. Full backend 135 passed, browser 26 passed, build passed. Fresh Git checkout installed from official fixed PocketFlow source with independent venvs; repeated installation and LaunchServices .command launch/stop passed. Actual 435-file data backup restored 2 projects, 3 runs and M3's 7 artifacts; browser reopened source and historical real output without a new model request. Final Node22 PATH regression: 17 local-tool tests passed. Remaining: final document/spec review, G2 evidence commit and G3 local merge. Real trial remains 0/3; no feedback iteration.
