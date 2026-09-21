@@ -212,3 +212,10 @@ curl 'http://127.0.0.1:8000/api/projects?limit=20&offset=0'
 - `pocketflow/requirements.lock`：与 FastAPI 分开的 PocketFlow 环境依赖；见 [安装与来源](pocketflow/README.md)。
 
 运行后台时只使用一个 worker；同一数据目录重复拥有者会被锁拒绝。重启不自动继续未完成任务，而标为 interrupted。44 项后台测试通过，覆盖成功结果重开、失败、取消、超时、强制退出后进程组清理、重启恢复和产物校验；详细证据见 [步骤 6 验证](../evidence/m3/step-6-check.md)。
+
+
+## OpenRouter 配置与小测试
+
+已选择 `deepseek/deepseek-v4-flash`。填写被忽略的 `server/.env` 中 `OPENROUTER_API_KEY` 后，在 server/ 执行 `.venv/bin/python -m app.model_check`（仅检查），再执行 `.venv/bin/python -m app.model_check --smoke`（一次短请求）。缺密钥不联网，不打印密钥，不自动重试。
+
+此 CLI 显式读取四个模型配置字段，**不会自动为现有 Uvicorn／任务服务加载 .env 或启用真实运行**。参数、请求限制、价格比较见 [OpenRouter 配置说明](../docs/08-openrouter-setup.md)，当前验证见 [准备记录](../evidence/m3/openrouter-precheck.md)。

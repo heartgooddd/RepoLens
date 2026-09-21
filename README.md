@@ -16,7 +16,7 @@
 
 当前运行窗口明确标注 **“替身验证 · 无模型”**，输出是固定测试内容。本步没有发送真实模型请求，M3 的真实生成验收留到步骤 7。实际截图与验证见 [步骤 6 记录](evidence/m3/step-6-check.md)，配置和任务接口见 [任务服务说明](docs/07-task-runner.md)。
 
-**步骤 7 配置预检（2026-09-21）：阻塞，M3 未完成。** 当前未选定模型服务，未发现匹配的 API Key；虽有 Anthropic 模型／地址环境变量，但配置不齐全，后台也尚未接通真实模型配置与入口。本次没有发送模型请求、没有合并分支。已记录[配置状态、只读核对及后续接入项](evidence/m3/acceptance.md)。下一步先确定服务商与模型及本机配置位置，再完成真实接入；不在聊天中提供密钥明文。
+**步骤 7 正在补配置：**已选择 OpenRouter + `deepseek/deepseek-v4-flash`，本机 `server/.env` 已准备，只需填写 `OPENROUTER_API_KEY`。已增加一次短请求检查器，见 [OpenRouter 配置与简单验证](docs/08-openrouter-setup.md)；9项无网络测试通过，密钥鉴权与真实请求尚未验证。页面仍为替身模式，真实 PocketFlow 调用接入和完整验收待完成，M3 未合并。历史预检见 [验收记录](evidence/m3/acceptance.md)。
 
 ## 启动后台
 

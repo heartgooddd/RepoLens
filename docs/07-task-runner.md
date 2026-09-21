@@ -103,3 +103,8 @@ Run 字段：`id,snapshot_id,mode,status,stage,language,topics,scope,scenario,cr
 本步实际验证和截图见 [步骤 6 记录](../evidence/m3/step-6-check.md)。真实模型配置、真实输出质量、提供商失败处理和一次小范围真实生成验收属于步骤 7，本步没有验证它们。
 
 实现参考：[Python asyncio subprocess](https://docs.python.org/3/library/asyncio-subprocess.html)、[react-markdown 的安全与 HTML 处理](https://github.com/remarkjs/react-markdown#security)。
+
+
+## 7. OpenRouter 简单验证准备（后续更新）
+
+独立 CLI 现已支持显式读取 `server/.env` 的 OpenRouter 字段并做一次短请求测试，配置与价格见 [08 配置说明](08-openrouter-setup.md)。以上任务 API 的模式仍固定为 stub，没有因新增配置文件而启用真实运行。
