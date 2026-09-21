@@ -175,6 +175,7 @@ def test_second_code_registered_recipe_uses_its_own_parameters_and_entry(setting
         message: str = 'only runner evidence'
     app = create_app(settings)
     recipe = replace(REGISTRY['pocketflow-tutorial'], id='fixture-action', public=False, requires_model=False,
+                     upstream_commit='a' * 40,
                      parameter_model=FixtureParameters, input_commit=None,
                      command_builder=lambda source, output, params: [str(PYTHON), '-B', '-u', str(ROOT/'server/tests/action_fixture_worker.py'), 'success', params['message']])
     app.state.runner.recipes[recipe.id] = recipe
@@ -186,6 +187,7 @@ def test_second_code_registered_recipe_uses_its_own_parameters_and_entry(setting
         run = wait_for(client, response.json()['id'], {'succeeded','failed'})
         assert run['status'] == 'succeeded', run
         assert run['recipe_id'] == recipe.id
+        assert run['upstream_commit'] == recipe.upstream_commit
         assert json.loads(run['parameters_json'])['message'] == 'fixture output'
         artifact = run['artifacts'][0]
         assert client.get(f"/api/runs/{run['id']}/artifacts/{artifact['id']}").json()['content'] == 'fixture output'
@@ -196,6 +198,27 @@ def test_cache_identity_includes_all_recipe_parameters():
     base = dict(snapshot_id='snapshot', snapshot_revision='sha256:abc', mode='pocketflow', provider='OPENROUTER', model='test',
                 prompt_version='v1', language='zh', topics=3, scope='utils', scenario='success', recipe_id='recipe', recipe_version='1')
     assert result_cache_key(**base, recipe_parameters={'extra':'a'}) != result_cache_key(**base, recipe_parameters={'extra':'b'})
+    assert result_cache_key(**base, upstream_commit='a' * 40) != result_cache_key(**base, upstream_commit='b' * 40)
+
+
+def test_registered_model_worker_receives_own_upstream_commit(settings):
+    from dataclasses import replace
+    from app.config import ROOT
+    from app.pocketflow_adapter import PYTHON
+    app = prepare(settings)
+    app.state.runner.real_command = None
+    recipe = replace(app.state.runner.recipes['pocketflow-tutorial'], id='fixture-metadata', public=False,
+                     upstream_commit='b' * 40,
+                     command_builder=lambda *args: [str(PYTHON), '-B', '-u', str(ROOT/'server/tests/action_fixture_worker.py'), 'metadata'])
+    app.state.runner.recipes[recipe.id] = recipe
+    with TestClient(app) as client:
+        request = registered(client, settings)
+        response = client.post('/api/runs', json={'recipe_id': recipe.id, 'snapshot_id': request['snapshot_id'], 'parameters': {}})
+        assert response.status_code == 201, response.text
+        run = wait_for(client, response.json()['id'], {'succeeded', 'failed'})
+        assert run['status'] == 'succeeded', run
+        artifact = run['artifacts'][0]
+        assert client.get(f"/api/runs/{run['id']}/artifacts/{artifact['id']}").json()['content'] == recipe.upstream_commit
 
 
 def test_dependency_mismatch_marks_runtime_unready(tmp_path, monkeypatch):

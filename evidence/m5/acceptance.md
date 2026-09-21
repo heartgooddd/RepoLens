@@ -21,13 +21,15 @@
 
 | 验证 | 结果与证据 |
 |---|---|
-| 后端完整回归 | `server/.venv/bin/python -m pytest -q server/tests`：95 passed；2条既有Starlette测试依赖弃用警告 |
+| 后端完整回归 | `server/.venv/bin/python -m pytest -q server/tests`：96 passed；2条既有Starlette测试依赖弃用警告；审查修正后的定向回归见下文 |
+| 审查修正定向回归 | `server/.venv/bin/python -m pytest -q server/tests/test_recipes.py server/tests/test_isolation.py server/tests/test_runs.py server/tests/test_real_runs.py`：35 passed；包含新增的不同配方Commit元数据用例，无真实模型请求 |
 | 类型与生产构建 | `cd web && npm run build`：通过，192 modules |
 | 浏览器完整回归 | `cd web && npm run test:e2e`：26 passed，desktop/narrow各13项 |
 | M5 页面样式/离线标识收尾 | `npm run test:e2e -- tests/recipes.spec.ts`：4 passed；服务端参数表单→启动→离线PocketFlow→预览→刷新历史，以及配方服务错误/恢复 |
 | 依赖一致性 | 两个环境 `python -m pip check` 均返回 No broken requirements found；配方另校验PocketFlow锁定包版本 |
 | 实际数据库迁移 | 连续两次 `cd server && .venv/bin/python -m app.migrate` 均返回版本6；M3成功任务与7个产物保留，配方字段仍为空，integrity_check=ok |
 | 隔离文件范围 | 真实沙箱进程可读input、可写output；范围外读/写、input修改被PermissionError拒绝；假沙箱仅返回0无法通过能力自检 |
+| 信号范围 | 沙箱内允许向自身/子进程发送信号，不允许向宿主父进程发送信号；使用无副作用的signal 0验证 |
 | 固定入口隔离 | 只授权上游固定Commit的Python文件；普通快照无执行登记能力；依赖版本不匹配返回不可用 |
 | 取消/超时 | 子进程忽略SIGTERM仍被SIGKILL清理；PID消失、终态正确、退出码保留、产物为空 |
 | 非零退出 | 夹具返回37，运行记录保存37及recipe_exit_nonzero，无成功产物 |
@@ -52,3 +54,5 @@
 ## 交付检查
 
 实现、文档和筛选截图按G2精确提交；完整代码审查与修正后按G3快进合并本地main，保留阶段分支。不推送远程；数据库、快照、原始运行数据和密钥继续留在被忽略的var/。
+
+双轴独立代码审查：规格轴无阻断问题，修正设计文档遗留“待实现”状态；规范轴发现其他配方可能继承PocketFlow来源Commit，以及产物限制重复定义。已修正为所选配方的Commit驱动持久化、worker元数据和缓存身份，并集中产物限制常量。新增不同Commit配方夹具先观察到3项失败，再验证修复；仍不代表新增第三方项目支持。

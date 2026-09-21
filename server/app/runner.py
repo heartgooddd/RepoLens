@@ -11,6 +11,7 @@ from uuid import uuid4
 from pydantic import ValidationError
 
 from .claims import verify_claims
+from .artifact_policy import MAX_ARTIFACT_FILES, MAX_ARTIFACT, MAX_ARTIFACT_TOTAL
 from .config import Settings
 from .db import connect
 from .import_policy import fail, validate_path, MAX_FILE
@@ -22,17 +23,17 @@ from .isolation import capability, sandbox_command
 from .run_store import get_run, now, update_run
 
 MAX_LOG = 256 * 1024
-MAX_ARTIFACT = 512 * 1024
 
 
 def result_cache_key(*, snapshot_id: str, snapshot_revision: str, mode: str, provider: str | None, model: str | None,
                      prompt_version: str | None, language: str, topics: int, scope: str, scenario: str,
-                     recipe_id: str | None = None, recipe_version: str | None = None, recipe_parameters: dict | None = None) -> str:
+                     recipe_id: str | None = None, recipe_version: str | None = None, recipe_parameters: dict | None = None,
+                     upstream_commit: str = COMMIT) -> str:
     """Key model/stub output by immutable input plus every output-affecting configuration value."""
     payload = {
         'snapshot_id': snapshot_id, 'snapshot_revision': snapshot_revision, 'mode': mode, 'provider': provider, 'model': model,
         'prompt_version': prompt_version, 'language': language, 'topics': topics, 'scope': scope,
-        'scenario': scenario, 'runner_commit': COMMIT,
+        'scenario': scenario, 'runner_commit': upstream_commit,
         'recipe_id': recipe_id, 'recipe_version': recipe_version,
         'recipe_parameters': recipe_parameters,
     }
@@ -162,6 +163,7 @@ class Runner:
             scope=request.scope, scenario=request.scenario,
             recipe_id=recipe.id if recipe else None, recipe_version=recipe.version if recipe else None,
             recipe_parameters=parameters if recipe else None,
+            upstream_commit=recipe.upstream_commit if recipe else COMMIT,
         )
         with connect(self.settings.database) as db:
             cached = db.execute("SELECT id FROM runs WHERE result_cache_key = ? AND status = 'succeeded' ORDER BY ended_at DESC LIMIT 1",
@@ -178,7 +180,7 @@ class Runner:
         with connect(self.settings.database) as db:
             db.execute('''INSERT INTO runs(id,snapshot_id,mode,status,stage,language,topics,scope,scenario,created_at,upstream_commit,model_provider,model_name,prompt_version,result_cache_key)
                           VALUES (?,?,?,'queued','queued',?,?,?,?,?,?,?,?,?,?)''',
-                       (run_id, str(request.snapshot_id), request.mode, request.language, request.topics, request.scope, request.scenario, now(), COMMIT,
+                       (run_id, str(request.snapshot_id), request.mode, request.language, request.topics, request.scope, request.scenario, now(), recipe.upstream_commit if recipe else COMMIT,
                         config.provider if config else None, config.model if config else None, prompt_version, cache_key))
             if recipe:
                 db.execute('UPDATE runs SET recipe_id=?,recipe_version=?,parameters_json=?,isolation_kind=? WHERE id=?',
@@ -297,7 +299,7 @@ class Runner:
             self.processes[run_id] = process
             if config:
                 metadata = {'model': config.model, 'api_key': config.api_key, 'snapshot_id': run.snapshot_id,
-                            'scope': run.scope, 'topics': run.topics, 'commit': COMMIT}
+                            'scope': run.scope, 'topics': run.topics, 'commit': run.upstream_commit}
                 process.stdin.write(json.dumps(metadata).encode())
                 await process.stdin.drain()
                 process.stdin.close()
@@ -408,7 +410,7 @@ class Runner:
                 raise ValueError('Undeclared artifact type')
             size = file.stat().st_size
             total += size
-            if size > MAX_ARTIFACT or total > 4 * 1024 * 1024 or len(entries) >= 32:
+            if size > MAX_ARTIFACT or total > MAX_ARTIFACT_TOTAL or len(entries) >= MAX_ARTIFACT_FILES:
                 raise ValueError('Artifact limit')
             raw = file.read_bytes()
             raw.decode('utf-8')

@@ -22,5 +22,9 @@ elif scenario == 'artifact_link':
 elif scenario == 'success':
     (run / 'output/project').mkdir(parents=True)
     (run / 'output/project/index.md').write_text(sys.argv[2])
+elif scenario == 'metadata':
+    metadata = json.load(sys.stdin)
+    (run / 'output/project').mkdir(parents=True)
+    (run / 'output/project/index.md').write_text(metadata['commit'])
 else:
     raise AssertionError('Unknown test fixture scenario')

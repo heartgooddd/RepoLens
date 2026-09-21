@@ -4,6 +4,7 @@ from pathlib import Path
 from typing import Callable
 from pydantic import BaseModel
 from ..import_policy import validate_path
+from ..artifact_policy import MAX_ARTIFACT_FILES, MAX_ARTIFACT, MAX_ARTIFACT_TOTAL
 
 CommandBuilder = Callable[[Path, Path, dict], list[str]]
 
@@ -49,7 +50,7 @@ class ActionRecipe:
             'working_directory': 'var/runs/<run-id>',
             'timeout_seconds': self.timeout_seconds, 'max_timeout_seconds': self.max_timeout_seconds,
             'stop': {'signals': ['SIGTERM', 'SIGKILL'], 'grace_seconds': self.stop_grace_seconds, 'scope': 'process-group'},
-            'artifacts': {'root': 'output', 'required': list(self.required_artifacts), 'suffixes': list(self.artifact_suffixes), 'max_files': 32, 'max_file_bytes': 524288, 'max_total_bytes': 4194304},
+            'artifacts': {'root': 'output', 'required': list(self.required_artifacts), 'suffixes': list(self.artifact_suffixes), 'max_files': MAX_ARTIFACT_FILES, 'max_file_bytes': MAX_ARTIFACT, 'max_total_bytes': MAX_ARTIFACT_TOTAL},
             'network': 'outbound' if self.network else 'disabled',
             'requires_model': self.requires_model,
         }
