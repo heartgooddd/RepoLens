@@ -1,0 +1,97 @@
+import { test, expect } from '@playwright/test'
+import type { Page, TestInfo } from '@playwright/test'
+import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises'
+import path from 'node:path'
+
+async function capture(page: Page, info: TestInfo, name: string) {
+  await page.evaluate(() => { window.scrollTo(0, 0); document.querySelector('.run-panel')?.scrollTo(0, 0) })
+  await page.mouse.move(0, 0)
+  await page.screenshot({ path: info.outputPath(name), fullPage: true })
+}
+async function noOverflow(page: Page) {
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
+}
+
+test('真实样本地图、源码证据、刷新和项目列表重开', async ({ page }, info) => {
+  const errors: string[] = []
+  page.on('pageerror', error => errors.push(error.message))
+  await page.goto('/')
+  await expect(page.getByRole('heading', { name: '已保存的项目' })).toBeVisible()
+  await capture(page, info, 'real-home.png')
+  await page.getByRole('button', { name: '扫描 PocketFlow 样本' }).click()
+  await expect(page).toHaveURL(/#\/projects\/[\w-]+/)
+  const url = page.url()
+  await expect(page.getByRole('heading', { name: 'PocketFlow 项目地图' })).toBeVisible()
+  await expect(page.getByText('真实快照', { exact: true })).toBeVisible()
+  await expect(page.getByRole('region', { name: '真实源码片段' })).toContainText('已校验 SHA-256')
+  await page.getByRole('button', { name: /^main.py/ }).click()
+  await page.getByRole('button', { name: /__main__ guard/ }).click()
+  await expect(page.getByRole('region', { name: '真实源码片段' })).toContainText('__name__')
+  await page.getByRole('button', { name: /^flow.py/ }).click()
+  await expect(page.getByRole('region', { name: '真实源码片段' })).toContainText('fetch_repo >> identify_abstractions')
+  await capture(page, info, 'real-flow.png')
+  await page.getByRole('button', { name: /^nodes.py/ }).click()
+  await page.getByRole('button', { name: /^FetchRepo ·/ }).click()
+  await expect(page.getByRole('region', { name: '真实源码片段' })).toContainText('class FetchRepo')
+  await page.getByRole('button', { name: 'utils', exact: true }).click()
+  await page.getByRole('button', { name: /^utils\/call_llm.py/ }).click()
+  await page.getByRole('button', { name: /^call_llm ·/ }).click()
+  await expect(page.getByRole('region', { name: '真实源码片段' })).toContainText('def call_llm')
+  await expect(page.getByText('名称推断 · 待核实')).toBeVisible()
+  await expect(page.getByRole('button', { name: '生成项目导览 · 尚未接入' })).toBeDisabled()
+  await capture(page, info, 'real-utils.png')
+  for (const width of [320, 390, 768, 1440]) {
+    await page.setViewportSize({ width, height: 1000 })
+    await noOverflow(page)
+  }
+  await page.reload()
+  await expect(page.getByRole('region', { name: '真实源码片段' })).toContainText('已校验 SHA-256')
+  await page.getByRole('link', { name: '返回输入页' }).click()
+  await page.locator(`a[href="${new URL(url).hash}"]`).click()
+  await expect(page).toHaveURL(url)
+  await expect(page.getByRole('heading', { name: 'PocketFlow 项目地图' })).toBeVisible()
+  await page.getByRole('link', { name: '查看独立演示模式' }).click()
+  await expect(page.getByText('演示模式 · 不调用模型')).toBeVisible()
+  expect(errors).toEqual([])
+})
+
+test('目录选择上传与空目录、超大文件、非法路径错误', async ({ page }, info) => {
+  const parent = path.resolve('../var/tests')
+  await mkdir(parent, { recursive: true })
+  const directory = await mkdtemp(path.join(parent, 'upload-'))
+  try {
+    await mkdir(path.join(directory, 'src'))
+    await writeFile(path.join(directory, 'src', 'start.py'), 'def launch():\n    return "from upload"\n')
+    await writeFile(path.join(directory, 'notes.txt'), 'This file has no verified responsibility.\n')
+    await writeFile(path.join(directory, '.env'), 'FAKE_BROWSER_TEST_SECRET')
+    await page.goto('/')
+    await page.getByLabel('上传本地目录').setInputFiles(directory)
+    await expect(page).toHaveURL(/#\/projects\/[\w-]+/)
+    await expect(page.getByText('职责待核实', { exact: true })).toBeVisible()
+    await page.getByRole('button', { name: 'src', exact: true }).click()
+    await expect(page.getByRole('region', { name: '真实源码片段' })).toContainText('from upload')
+    await expect(page.getByRole('button', { name: /^\.env/ })).toHaveCount(0)
+    await page.reload()
+    await page.getByRole('button', { name: 'src', exact: true }).click()
+    await expect(page.getByRole('region', { name: '真实源码片段' })).toContainText('from upload')
+    await capture(page, info, 'uploaded-project.png')
+    await rm(path.join(directory, 'src'), { recursive: true })
+    await rm(path.join(directory, 'notes.txt'))
+    await page.goto('/')
+    await page.getByLabel('上传本地目录').setInputFiles(directory)
+    await expect(page.getByRole('alert')).toContainText('过滤后没有可扫描')
+    await capture(page, info, 'empty-directory.png')
+    await writeFile(path.join(directory, 'large.py'), 'x'.repeat(1024 * 1024 + 1))
+    await page.getByLabel('上传本地目录').setInputFiles(directory)
+    await expect(page.getByRole('alert')).toContainText('单文件超过 1 MiB')
+    await capture(page, info, 'oversized-file.png')
+    // Change the outgoing request only; the real backend must reject it and UI must show the response.
+    await page.route('**/api/projects/import', route => route.continue({ postData: JSON.stringify({ source: 'upload', files: [{ path: '../escape.py', content_base64: 'eA==' }] }) }))
+    await page.getByRole('button', { name: '扫描 PocketFlow 样本' }).click()
+    await expect(page.getByRole('alert')).toContainText('文件路径非法')
+    await capture(page, info, 'invalid-path.png')
+    await noOverflow(page)
+  } finally {
+    await rm(directory, { recursive: true, force: true })
+  }
+})

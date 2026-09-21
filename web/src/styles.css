@@ -192,3 +192,25 @@ fieldset { padding: 0; margin: 0; border: 0; min-width: 0; }
   .section-heading { align-items: flex-start; }
 }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { scroll-behavior: auto !important; } }
+
+/* M2 source workspace reuses the M0 visual hierarchy. */
+.import-area { text-align: left; margin: 28px auto; max-width: 680px; }
+.import-actions { display: flex; flex-wrap: wrap; gap: 12px; }
+.import-status { padding: 14px; background: var(--green-soft); border-radius: 10px; font-size: 14px; }
+.saved-projects { margin: 26px 0; border-top: 1px solid var(--line); padding-top: 12px; }
+.saved-projects h2 { font-size: 16px; }
+.repository-tree { max-height: 520px; overflow-y: auto; }
+.repository-tree .tree-item span:last-child { overflow-wrap: anywhere; min-width: 0; }
+.repository-files { max-height: 300px; overflow-y: auto; margin-bottom: 22px; }
+.source-symbols { display: flex; flex-wrap: wrap; gap: 8px 16px; }
+.source-symbols button { overflow-wrap: anywhere; max-width: 100%; text-align: left; }
+.source-preview h3 { font: 600 13px ui-monospace, monospace; overflow-wrap: anywhere; }
+.source-pagination { display: flex; justify-content: space-between; gap: 8px; }
+.source-pagination button { padding: 9px 12px; }
+.snapshot-meta { font-size: 12px; line-height: 1.8; margin-top: 28px; }
+.snapshot-meta h3 { font-size: 13px; }
+.snapshot-meta code, .breadcrumbs { overflow-wrap: anywhere; }
+@media (max-width: 760px) {
+  .repository-tree { max-height: 220px; }
+  .import-actions > button { width: 100%; }
+}

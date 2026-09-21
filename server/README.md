@@ -1,6 +1,6 @@
-# RepoLens 后台：M2 步骤 4
+# RepoLens 后台：M2 真实仓库地图
 
-本步提供 SQLite 保存基础和读取 API。前端仍使用 M1 演示数据；没有导入、扫描、运行或模型接口。首次启动的项目列表为空，不自动插入示例项目。
+已完成步骤 4–5：SQLite 保存、受限目录导入、静态扫描和源码读取。首次启动不自动插入项目；本机验收已导入一份 PocketFlow。运行任务和模型调用留到 M3，演示工作台保持独立。
 
 ## 环境与安装
 
@@ -29,7 +29,7 @@ python3.14 -m venv .venv
 - 机器可读字段定义：http://127.0.0.1:8000/openapi.json
 - `Ctrl+C` 停止；再运行同一条 Uvicorn 命令即重启，数据仍使用同一文件。
 - 每次启动在 FastAPI lifespan 中自动执行迁移；手动迁移用于检查或部署准备。已有版本不会重新执行。端口占用会报错，先核对占用进程。
-- 仅监听本机回环地址。当前是无认证的本地单用户服务，不用于公开部署。CORS 允许 `http://127.0.0.1:5173` 和 `http://localhost:5173` 的 GET 请求，前端接线留到步骤 5。
+- 仅监听本机回环地址。当前是无认证的本地单用户服务，不用于公开部署。CORS 仅允许本机 localhost / 127.0.0.1 的 5173、5174、4173、8000 端口；导入请求还会校验 Origin 和 JSON Content-Type。前端通过 Vite 同源 `/api` 代理接入。
 
 ## 数据位置
 
@@ -43,7 +43,7 @@ RepoLens/var/
 └── tests/m2-*/                  自动验证的隔离数据，测试结束自动清理
 ```
 
-本步创建前三项的基础目录；快照和运行内容尚未导入。测试会在独立目录中创建一个带 `hello.py` 的合成快照，明确标记 `source_type=test_fixture`，不污染默认数据库。
+每次成功导入建立独立快照目录并写 SQLite。测试在独立目录中导入本地 PocketFlow 或合成源码，不污染默认数据库；`tests/serve_e2e.py` 为浏览器测试在 8001 端口创建临时数据库。任务运行目录仍预留。
 
 可通过环境变量 `REPOLENS_DATA_DIR` 指定**绝对**数据目录，数据库始终命名为 `repolens.sqlite3`；省略则使用根目录 `var/`。`.env.example` 是无密钥模板，程序不会自动加载 `.env`。不要将数据目录指向受 Git 跟踪的源码目录。项目标签是展示名称，不应存密钥或本机绝对路径。
 
@@ -53,20 +53,24 @@ RepoLens/var/
 
 | 位置 | 职责 |
 |---|---|
-| `app/main.py` | 生命周期、健康检查、项目列表与详情、CORS |
+| `app/main.py` | 生命周期、健康检查、导入、列表、详情与源码接口 |
+| `app/importer.py`、`scanner.py` | 固定 Git 版本读取、上传校验、快照保存和静态证据提取 |
+| `app/import_policy.py`、`request_limits.py` | 排除规则、路径和体积边界、读取请求体前的上限 |
+| `app/source.py` | 已登记文件的哈希校验与源码分段返回 |
 | `app/models.py` | Pydantic 接口字段、路径和关联校验 |
-| `app/repository.py` | 事务写入与读取；下一步导入器的保存入口 |
+| `app/repository.py` | 事务写入与读取；导入器的保存入口 |
 | `app/db.py`、`app/migrate.py` | SQLite 连接、迁移执行器及 CLI |
 | `migrations/001_repository_metadata.sql` | 初始表、索引、外键与约束 |
+| `migrations/002_snapshot_files.sql` | 文件清单与名称推断字段，保留旧数据 |
 | `tests/` | HTTP 合约、持久化、迁移及真实进程重启验证 |
 
-关系：`projects → snapshots → folder_cards → evidence_refs`。每个项目可有多个快照；每个快照中的目录路径唯一；证据的文件位置依附于同一快照中的文件夹卡，复合外键防止跨快照错配。删除父记录会级联删除子元数据，目前不暴露删除 API。事实、推断和待核实分开存储，不能用推断覆盖原始引用。
+关系：`projects → snapshots → folder_cards → evidence_refs`。每个项目可有多个快照；每个快照中的目录路径唯一；证据的文件位置依附于同一快照中的文件夹卡，复合外键防止跨快照错配。删除父记录会级联删除子元数据，目前不暴露删除 API。`snapshot_files` 按快照保存文件路径、字节数和 SHA-256。事实、推断和待核实分开存储，不能用推断覆盖原始引用。
 
-`create_project(database, ProjectDetail)` 是内部 Python 保存入口，一次事务写入完整聚合；不覆盖已有 ID，失败则全部回滚。本步不增加用于演示的公开写入 API。它保存元数据，不复制文件、不验证源码内容真实性；下一步导入器负责安全快照和证据提取。
+`create_project(database, ProjectDetail)` 是内部 Python 保存入口，一次事务写入完整聚合；不覆盖已有 ID，失败则全部回滚。导入器先验证所有内容，再复制到 UUID 快照目录，最后调用此入口；普通异常会清理失败快照，进程硬中断可能留下未登记的孤立目录，不会自动删除。
 
 ### 后续迁移规则
 
-1. 新增 `002_<name>.sql`、`003_<name>.sql`，版本连续；不要修改已执行的迁移。
+1. 后续新增 `003_<name>.sql`、`004_<name>.sql`，版本连续；不要修改已执行的迁移。
 2. 每条完整 SQL 语句以分号结束，最后一条结束后不添加独立注释；一行不写多条语句。不要在文件中写 `BEGIN/COMMIT/ROLLBACK`、`VACUUM` 等自行控制事务的语句。
 3. 执行器在一个 `BEGIN IMMEDIATE` 事务中核对版本与 SHA-256、执行待应用的 SQL 并写 `schema_migrations`。SQL 或校验失败会回滚并阻止服务启动；不会删库重建。
 4. 修改过的历史迁移、缺失版本、比代码新的数据库会被拒绝；恢复匹配代码或补充正确迁移。当前不提供自动降级。
@@ -76,14 +80,14 @@ RepoLens/var/
 
 ## API 请求与响应
 
-共同约定：三个端点均为 `GET`，无请求体或密钥。ID 为 UUID 字符串；时间为带 `Z` 的 UTC ISO 8601 字符串；路径用 `/`，根目录是 `.`。响应不返回本机绝对路径或直接读取源码内容。详细模型与必填字段同步生成在 `/openapi.json`。
+共同约定：本地服务不要求密钥。导入使用 JSON POST，其余端点为 GET。ID 为 UUID 字符串；时间为带 `Z` 的 UTC ISO 8601 字符串；路径用 `/`，根目录是 `.`。响应不返回本机绝对路径或直接读取源码内容。详细模型与必填字段同步生成在 `/openapi.json`。
 
 ### `GET /api/health`
 
 无参数。实际读取迁移表和项目表，成功 `200`：
 
 ```json
-{"status":"ok","database":"ok","schema_version":1}
+{"status":"ok","database":"ok","schema_version":2}
 ```
 
 数据库不可用返回 `503 {"detail":"Database unavailable"}`。启动迁移失败时服务不进入就绪状态。此接口检查元数据库可读，不代表源码文件存在或模型可运行。
@@ -112,14 +116,14 @@ RepoLens/var/
 | 对象 | 字段与含义 |
 |---|---|
 | Project | `id: UUID`；`name: string` 名称；`source_type: builtin / local_upload / github / test_fixture`；`source_label: string` 来源展示标签；`created_at / updated_at: UTC datetime` |
-| Snapshot | `id / project_id: UUID`；`revision: string` Commit 或内容版本标识；`commit_sha: string \| null` 40/64 位小写十六进制；`storage_path: string` 固定 `snapshots/<id>`，相对数据目录；`created_at: UTC datetime`；`folder_cards: array` |
-| FolderCard | `id / snapshot_id: UUID`；`path: string` 相对快照根目录；`title / description: string`；`claim_type: fact / inference / unverified`；`evidence_refs: array` |
+| Snapshot | `id / project_id: UUID`；`revision: string` Commit 或内容版本标识；`commit_sha: string \| null` 40/64 位小写十六进制；`storage_path: string` 固定 `snapshots/<id>`，相对数据目录；`created_at: UTC datetime`；`folder_cards: array`；`files: array<{path, size_bytes, sha256}>` |
+| FolderCard | `id / snapshot_id: UUID`；`path: string` 相对快照根目录；`title / description: string`；`claim_type: fact / inference / unverified`；`inference: string | null` 名称推断；`evidence_refs: array` |
 | EvidenceRef | `id / folder_card_id / snapshot_id: UUID`；`file_path: string` 相对快照根目录；`line_start / line_end: integer` 从 1 起、两端包含、结束不小于开始；`symbol: string \| null`；`excerpt: string` 源码摘录 |
 
-快照按创建时间倒序、ID 倒序；卡片按路径；证据按文件路径、开始行、ID。没有快照或卡片时返回空数组。详情本步返回所有快照元数据，源码树和文件内容接口留到步骤 5；大型版本历史的分页暂未实现。
+快照按创建时间倒序、ID 倒序；卡片按路径；证据按文件路径、开始行、ID。没有快照或卡片时返回空数组。详情返回所有快照元数据和已保留文件清单；源码分段接口见下方。大型版本历史的分页暂未实现。
 
 - 合法 UUID 不存在：`404 {"detail":"Project not found"}`。
-- ID 格式错误或查询校验错误：`422 {"detail":[{"loc":[...],"msg":"...","type":"..."}]}`（FastAPI 校验结构，可含 `input` 等字段）。
+- ID 格式错误或查询校验错误：`422 {"detail":{"code":"invalid_request","message":"请求字段不合法，请检查来源、文件数量、路径和参数。"}}`；不回显上传文件内容。
 - `source_type=github` 只是预留数据枚举，不代表已具备远程导入。
 
 ## 验证
@@ -140,4 +144,56 @@ curl http://127.0.0.1:8000/api/health
 curl 'http://127.0.0.1:8000/api/projects?limit=20&offset=0'
 ```
 
-实际结果、限制和日期见 [步骤 4 验证记录](../docs/05-m2-foundation-check.md)。
+实际结果、截图和限制见 [M2 验收](../evidence/m2/acceptance.md)；历史基础检查见 [步骤 4 记录](../docs/05-m2-foundation-check.md)。
+
+## 导入与源码 API（步骤 5）
+
+### `POST /api/projects/import`
+
+必须 `Content-Type: application/json`。读取请求流上限 **12 MiB**、30 秒，之后才解析 JSON；不接收任意绝对目录、Git 命令或远程 URL。
+
+只读内置样本请求：
+
+```json
+{"source":"builtin"}
+```
+
+实际读取固定的 `upstream/pocketflow-codebase-knowledge` Git HEAD，然后用该 Commit 枚举普通 blob。未提交修改不进入快照；链接和子模块跳过，不执行 Git hooks、目标脚本或联网下载。
+
+上传请求（示例 `eA==` 是单个字符 x）：
+
+```json
+{"source":"upload","name":"我的项目","files":[{"path":"src/example.txt","content_base64":"eA=="}]}
+```
+
+`name` 1–200 字符；`files` 最多 500 项；`path` 是去掉所选根目录名的相对 POSIX 路径，禁止绝对路径、`..`、空段、反斜杠、控制字符、Windows 路径特殊字符等；路径上限 700 UTF-8 字节、20 层、每段 200 字节。拒绝重复／大小写冲突路径及文件和目录占用同名路径。浏览器传文件字节，不传本机绝对路径或符号链接对象。
+
+- 每个保留文件 ≤ **1 MiB**，保留候选内容总量 ≤ **8 MiB**，目录 ≤ **500** 个；不解压归档。
+- 排除 `.git/.hg/.svn`、依赖、虚拟环境、构建目录、`.ssh/.aws`、`var`，以及 `.env*`、常见凭据名、密钥后缀、数据库文件。前端先过滤以避免上传这些文件，后台独立重复校验。
+- 仅保留允许扩展名的 UTF-8 文本：Python、Markdown、README、JSON/YAML/TOML、JS/TS、配置、CSS/HTML、SQL、shell 等（精确清单见 `import_policy.py`）。二进制、未知类型和空目录不会保存；空文本文件可以保留。
+- 文件名过滤不是秘密内容扫描器；上传前需自行检查源码中没有硬编码密钥。
+
+成功 `201`：`{detail: ProjectDetail, skipped_count: integer, note: string}`。`detail` 与项目详情模型相同；`skipped_count` 仅为后台跳过的条目，浏览器预先过滤的文件不在请求中。内容版本是保留路径与文件 SHA-256 组成的整体哈希；`commit_sha` 仅内置样本有值。每次导入建立新项目和独立快照，重复导入复用留到 M4，不修改原目录。
+
+静态扫描不执行任何文件：提取 Python 顶层定义、精确的 `__name__ == "__main__"` 条件、`>>` 表达式，以及 README／部分配置原文，每个文件最多 12 段线索。`>>` 只标操作符存在，不保证它一定是流程；语法错误或无线索时不编造职责。名称推断存入独立 `inference` 字段并显式标“待核实”。
+
+### `GET /api/snapshots/{snapshot_id}/source?path=flow.py&start=1&limit=80`
+
+`id` 为 UUID；`path` 必须已登记在该快照；`start ≥ 1`；`limit` 1–200，默认 80。返回 `200 {path, sha256, line_start, line_end, total_lines, content}`，源码行号从 1 起，两端包含。不渲染 HTML 或执行源码；单次片段输出 ≤ 64 KiB。空文件返回 `total_lines=0`、`content=""`。读取前检查路径、链接及完整文件 SHA-256；只允许已保存文件。
+
+### 错误状态
+
+错误体统一 `{"detail":{"code":"...","message":"可显示给用户的中文提示"}}`；已有项目 404 / 健康检查 503 保留字符串 `detail`。
+
+| 状态 | code / 情境 |
+|---|---|
+| 422 | `empty_directory`、`invalid_path`、`duplicate_path`、`path_conflict`、`invalid_encoding`、`invalid_request` |
+| 413 | `file_too_large`、`project_too_large`、`request_too_large`、`source_slice_too_large` |
+| 404 | `file_not_found` |
+| 409 | `snapshot_missing`、`snapshot_changed` |
+| 403 / 415 / 408 | `origin_rejected` / `invalid_content_type` / `upload_timeout` |
+| 503 | `sample_unavailable`，本地样本不存在、不完整或读取超时 |
+
+纯空目录通常不会让浏览器原生目录选择器返回 FileList，因此界面提供明确说明；收到空列表／过滤后为空时显示错误。非法路径由 API 再校验，失败时不创建项目。源码变化或丢失时要求重新导入，不将旧元数据冒充仍然存在的文件。
+
+浏览器目录选择规则参考 [MDN webkitdirectory](https://developer.mozilla.org/en-US/docs/Web/API/HTMLInputElement/webkitdirectory)。本步未提供完整调用图、自动语义职责总结、后台运行、远程仓库导入或公开部署。

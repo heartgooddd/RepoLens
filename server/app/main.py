@@ -1,4 +1,4 @@
-"""Read-only API foundation; import and run endpoints arrive in later milestones."""
+"""Local snapshot import and read APIs; execution remains a later milestone."""
 
 import sqlite3
 from contextlib import asynccontextmanager
@@ -7,11 +7,16 @@ from uuid import UUID
 
 from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import JSONResponse
 
 from .config import Settings
 from .db import connect, migrate
 from .models import Health, ProjectDetail, ProjectList
 from .repository import get_project, list_projects
+from .importer import ImportRequest, ImportResult, import_project
+from .request_limits import ImportBodyLimit, ORIGINS
+from .source import SourceSlice, read_source
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -24,12 +29,26 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         yield
 
     app = FastAPI(title="RepoLens API", version="0.2.0", lifespan=lifespan)
+    app.add_middleware(ImportBodyLimit)
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["http://127.0.0.1:5173", "http://localhost:5173"],
-        allow_methods=["GET"],
+        allow_origins=ORIGINS,
+        allow_methods=["GET", "POST"],
         allow_headers=["Accept", "Content-Type"],
     )
+
+    @app.exception_handler(RequestValidationError)
+    async def invalid_request(_, exc):
+        return JSONResponse(status_code=422, content={"detail": {"code": "invalid_request", "message": "请求字段不合法，请检查来源、文件数量、路径和参数。"}})
+
+    @app.post("/api/projects/import", response_model=ImportResult, status_code=201)
+    def import_repository(body: ImportRequest) -> ImportResult:
+        return import_project(settings, body)
+
+    @app.get("/api/snapshots/{snapshot_id}/source", response_model=SourceSlice)
+    def source(snapshot_id: UUID, path: str, start: Annotated[int, Query(ge=1)] = 1,
+               limit: Annotated[int, Query(ge=1, le=200)] = 80) -> SourceSlice:
+        return read_source(settings, str(snapshot_id), path, start, limit)
 
     @app.get("/api/health", response_model=Health, responses={503: {"description": "Database unavailable"}})
     def health() -> Health:

@@ -22,7 +22,10 @@ def create_project(database: Path, detail: ProjectDetail) -> None:
             insert("projects", data["project"])
             for snapshot in data["snapshots"]:
                 cards = snapshot.pop("folder_cards")
+                files = snapshot.pop("files")
                 insert("snapshots", snapshot)
+                for file in files:
+                    insert("snapshot_files", {"snapshot_id": snapshot["id"], **file})
                 for card in cards:
                     evidence_refs = card.pop("evidence_refs")
                     insert("folder_cards", card)
@@ -56,6 +59,10 @@ def get_project(database: Path, project_id: str) -> ProjectDetail | None:
             "SELECT * FROM snapshots WHERE project_id = ? ORDER BY created_at DESC, id DESC", (project_id,)
         ).fetchall():
             snapshot = dict(row)
+            snapshot["files"] = [dict(file) for file in connection.execute(
+                "SELECT path, size_bytes, sha256 FROM snapshot_files WHERE snapshot_id = ? ORDER BY path",
+                (row["id"],),
+            )]
             cards = []
             for card_row in connection.execute(
                 "SELECT * FROM folder_cards WHERE snapshot_id = ? ORDER BY path", (row["id"],)

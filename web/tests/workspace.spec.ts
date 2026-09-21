@@ -10,7 +10,7 @@ const test = base.extend({
     page.on('request', request => { if (!request.url().startsWith('http://127.0.0.1:5174')) externalRequests.push(request.url()) })
     await use(page)
     expect(errors, '浏览器控制台与运行时错误').toEqual([])
-    expect(externalRequests, '演示期间不应发起外部请求').toEqual([])
+    expect(externalRequests, '不应发起站外请求（本地 API 使用同源代理）').toEqual([])
   },
 })
 
@@ -36,7 +36,7 @@ async function capture(page: Page, testInfo: TestInfo, name: string) {
 
 test('输入页、文件夹证据、空结果与导航', async ({ page }, testInfo) => {
   await page.goto('/')
-  await expect(page.getByText('演示模式 · 不调用模型')).toBeVisible()
+  await expect(page.getByText('本地工作区 · 真实快照')).toBeVisible()
   await expect(page.getByLabel('GitHub 仓库地址')).toBeDisabled()
   await expectNoOverflow(page)
   await capture(page, testInfo, 'home.png')

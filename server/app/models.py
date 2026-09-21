@@ -73,7 +73,14 @@ class FolderCard(Record):
     title: str
     description: str
     claim_type: Literal["fact", "inference", "unverified"]
+    inference: str | None = None
     evidence_refs: list[EvidenceRef] = Field(default_factory=list)
+
+
+class SnapshotFile(Record):
+    path: RelativePath
+    size_bytes: int = Field(ge=0)
+    sha256: str
 
 
 class Snapshot(Record):
@@ -84,6 +91,7 @@ class Snapshot(Record):
     storage_path: RelativePath
     created_at: AwareDatetime
     folder_cards: list[FolderCard] = Field(default_factory=list)
+    files: list[SnapshotFile] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def snapshot_location(self) -> "Snapshot":

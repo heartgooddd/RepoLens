@@ -1,6 +1,6 @@
 # RepoLens 系统架构与数据保存方案
 
-> 状态：架构设计，M1 页面和 M2 步骤 4 保存基础已实施（2026-09-21）；扫描、联调与运行器仍待后续步骤。配合[页面蓝图](01-product-blueprint.md)和[实施路线](02-delivery-roadmap.md)使用。
+> 状态：架构设计，M1 页面和 M2 扫描、保存、联调已实施（2026-09-21）；运行器留到 M3。配合[页面蓝图](01-product-blueprint.md)和[实施路线](02-delivery-roadmap.md)使用。
 
 具体开发任务和可复制提示词见 [00 创作总指南](00-creation-guide.md)：步骤 4–5 接数据库和真实地图，步骤 6–7 接运行任务。版本管理见 [04 Git 操作手册](04-git-workflow.md)。
 
@@ -100,3 +100,11 @@ RepoLens/
 - 当前实际接口为 `GET /api/health`、`GET /api/projects`、`GET /api/projects/{project_id}`。请求与响应字段见 [后台 README](../server/README.md)。当前返回所有快照的嵌套元数据，不包含源码树或文件内容 API。
 - 项目来源、卡片结论类型、相对路径和快照关系已建模；证据提取和事实核验仍由下一步扫描器负责。内部保存函数不执行源码、不访问远程仓库。
 - 默认数据库为空；合成持久化测试数据独立放在 `var/tests/` 并在测试结束清理。运行表和产物表按 M3 追加迁移，不提前创建空功能。
+
+## 8. M2 步骤 5 的落地约定
+
+- 当前 `POST /api/projects/import` 接受 `builtin` 或 `upload`。内置读取固定 Git HEAD 的普通 blob，上传使用受限 JSON + Base64 和相对路径；不执行项目或读取任意主机路径。内容复制到独立 UUID 快照，再一次事务保存元数据。
+- 版本 002 新增 `snapshot_files`（路径、字节数、SHA-256）和卡片 `inference` 字段。真实目录来自过滤后的快照，Python 定义、入口条件和连接表达式由 AST 提取；README／配置保留原文片段。名称推断与事实分别展示，无证据的职责保留待核实。
+- `GET /api/snapshots/{id}/source` 只读已登记文件，检查相对路径、链接和 SHA-256，分页返回带行号文本；修改或丢失的快照返回 409。
+- React 在 `#/projects/<id>` 通过 API 读回，首页列 SQLite 中的项目；演示入口 `#/workspace` 独立保留。Vite 本机代理 `/api` 到后台。
+- 限制与请求字段见 [后台 README](../server/README.md)，实际验收见 [M2 记录](../evidence/m2/acceptance.md)。运行任务、完整符号图、GitHub 远程下载仍未实现。

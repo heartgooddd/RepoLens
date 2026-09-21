@@ -17,9 +17,14 @@ export default defineConfig({
     { name: 'desktop', use: { viewport: { width: 1440, height: 1000 } } },
     { name: 'narrow', use: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } },
   ],
-  webServer: {
+  webServer: [{
+    command: '../server/.venv/bin/python ../server/tests/serve_e2e.py',
+    url: 'http://127.0.0.1:8001/api/health',
+    reuseExistingServer: false,
+  }, {
     command: 'npm run dev -- --port 5174',
+    env: { REPOLENS_API_PROXY: 'http://127.0.0.1:8001' },
     url: 'http://127.0.0.1:5174',
     reuseExistingServer: false,
-  },
+  }],
 })
