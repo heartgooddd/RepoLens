@@ -1,6 +1,6 @@
 # RepoLens 系统架构与数据保存方案
 
-> 状态：设计决定（2026-09-19），尚未实施。配合[页面蓝图](01-product-blueprint.md)和[实施路线](02-delivery-roadmap.md)使用。
+> 状态：架构设计，M1 页面和 M2 步骤 4 保存基础已实施（2026-09-21）；扫描、联调与运行器仍待后续步骤。配合[页面蓝图](01-product-blueprint.md)和[实施路线](02-delivery-roadmap.md)使用。
 
 具体开发任务和可复制提示词见 [00 创作总指南](00-creation-guide.md)：步骤 4–5 接数据库和真实地图，步骤 6–7 接运行任务。版本管理见 [04 Git 操作手册](04-git-workflow.md)。
 
@@ -70,11 +70,11 @@ SQLite 的数据库是本机文件，不需要另起一个数据库服务；Fast
 RepoLens/
 ├── docs/                    产品设计、实施路线、系统架构、视觉样稿
 ├── web/                     React 演示页面（M1 步骤 2 已创建）
-├── server/                  FastAPI 与数据操作（M2 创建）
+├── server/                  FastAPI 与数据操作（M2 步骤 4 已创建）
 ├── upstream/                上游参考项目快照
 ├── notes/                   静态研究笔记
 ├── evidence/                人工验收证据
-└── var/                     运行数据（M2 创建，不进入版本库）
+└── var/                     运行数据（M2 步骤 4 已创建，不进入版本库）
     ├── repolens.sqlite3
     ├── snapshots/<snapshot-id>/
     └── runs/<run-id>/
@@ -92,3 +92,11 @@ RepoLens/
 - 首页、空状态、扫描中、成功、失败分别设计；M1 样稿数据明确标“演示”，真实能力接通后才把按钮变为可用。
 
 这个视觉方向是 RepoLens 自己的界面，不直接复制 PocketFlow 的命令行输出或其他产品的视觉资产。
+
+## 7. M2 步骤 4 的落地约定
+
+- `server/app/models.py` 定义项目、快照、文件夹卡和证据类型；`repository.py` 使用标准库 sqlite3 参数绑定、外键和事务保存，不引入 ORM。
+- 迁移在 `server/migrations/`，历史版本、文件名和 SHA-256 写入 `schema_migrations`；启动前校验并执行，失败回滚。数据库固定默认位置 `var/repolens.sqlite3`，不会随工作目录变化。
+- 当前实际接口为 `GET /api/health`、`GET /api/projects`、`GET /api/projects/{project_id}`。请求与响应字段见 [后台 README](../server/README.md)。当前返回所有快照的嵌套元数据，不包含源码树或文件内容 API。
+- 项目来源、卡片结论类型、相对路径和快照关系已建模；证据提取和事实核验仍由下一步扫描器负责。内部保存函数不执行源码、不访问远程仓库。
+- 默认数据库为空；合成持久化测试数据独立放在 `var/tests/` 并在测试结束清理。运行表和产物表按 M3 追加迁移，不提前创建空功能。
