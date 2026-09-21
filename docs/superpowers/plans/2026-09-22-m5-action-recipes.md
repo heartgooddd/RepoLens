@@ -40,8 +40,10 @@
 - [x] Record commands, counts, limitations, pinned worker identity and red/green observations in `evidence/m5/acceptance.md`. Update README, server README, guide, roadmap and architecture.
 - [x] Verify migration idempotency, dependency checks, full backend suite, build, browser suite and `git diff --check`.
 - [x] Commit only scoped files under G2; review against `eea0629` and the accepted spec on standards/spec axes. Fix material findings and run relevant regressions.
-- [ ] With a clean branch and verified tree, fast-forward `main` per G3 and preserve the phase branch. No remote push.
+- [x] With a clean branch and verified tree, fast-forward `main` per G3 and preserve the phase branch. No remote push.
 
 ## Progress
+
+G3 receipt: `main` fast-forwarded from `eea0629` to implementation/review-fix commit `ee2b6e7`; post-merge registry, provenance and isolation smoke tests passed (7 tests). Phase branch retained, worktree clean, no remote push. The following paragraph records the preceding pre-merge checkpoint.
 
 2026-09-22: Tasks 1–3 implemented and verified. Full backend 96 tests and browser 26 tests passed; final style/offline-label regression passed 4 browser cases. Task 4 documentation, evidence and two-axis independent review are complete. Review fixes bind each recipe's own upstream Commit to persistence, worker metadata and cache identity, and share artifact limit constants. Targeted backend regression covers these fixes and existing run/isolation behavior. Actual database migrated twice to version 6, old M3 success and 7 artifacts preserved. No paid model call. G3 remains the final delivery action after the review-fix G2 commit.
