@@ -14,7 +14,7 @@ class ImportBodyLimit:
         self.app = app
 
     async def __call__(self, scope, receive, send):
-        if scope["type"] != "http" or scope["method"] != "POST" or scope["path"] != "/api/projects/import":
+        if scope["type"] != "http" or scope["method"] != "POST" or not (scope["path"] in ("/api/projects/import", "/api/runs") or (scope["path"].startswith("/api/runs/") and scope["path"].endswith("/cancel"))):
             return await self.app(scope, receive, send)
         headers = dict(scope["headers"])
 
@@ -22,9 +22,10 @@ class ImportBodyLimit:
             await JSONResponse({"detail": {"code": code, "message": message}}, status_code=status)(scope, receive, send)
 
         if headers.get(b"origin") and headers[b"origin"].decode() not in ORIGINS:
-            return await reject(403, "origin_rejected", "不允许此来源导入项目。")
-        if headers.get(b"content-type", b"").split(b";", 1)[0].lower() != b"application/json":
-            return await reject(415, "invalid_content_type", "导入请求必须是 application/json。")
+            return await reject(403, "origin_rejected", "不允许此来源写入数据。")
+        if not scope["path"].endswith("/cancel") and headers.get(b"content-type", b"").split(b";", 1)[0].lower() != b"application/json":
+            return await reject(415, "invalid_content_type", "请求必须是 application/json。")
+        # Cancel has no body; all other writes require JSON and are bounded before parsing.
         body = bytearray()
         try:
             async with asyncio.timeout(30):
@@ -33,8 +34,8 @@ class ImportBodyLimit:
                     if message["type"] == "http.disconnect":
                         return
                     chunk = message.get("body", b"")
-                    if len(body) + len(chunk) > MAX_BODY:
-                        return await reject(413, "request_too_large", "上传请求超过 12 MiB 限制。")
+                    if len(body) + len(chunk) > (MAX_BODY if scope["path"] == "/api/projects/import" else 16384):
+                        return await reject(413, "request_too_large", "导入请求超过 12 MiB 限制。" if scope["path"] == "/api/projects/import" else "任务请求超过 16 KiB 限制。")
                     body.extend(chunk)
                     if not message.get("more_body", False):
                         break

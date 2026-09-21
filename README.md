@@ -12,11 +12,11 @@
 - [工作台视觉样稿](docs/mockups/01-workbench-concept.html)：可在浏览器切换输入页与工作台的设计概念，尚未连接后台；也可直接查看[输入页截图](docs/mockups/01-home-concept.png)和[工作台截图](docs/mockups/01-workbench-concept.png)。
 - [PocketFlow 第一轮解析笔记](notes/00-pocketflow-first-pass.md)：当前上游样本的静态阅读记录。
 
-当前已完成步骤 5：M2 真实地图验收通过，按 G2 保存并按 G3 合并到本地 `main`；保留 `feat/m2-repository-map` 供回溯。现在支持只读扫描 PocketFlow 已提交版本、选择目录上传、保存快照、浏览真实文件与证据，以及刷新／重启后重开项目。详情与实际截图见 [M2 验收记录](evidence/m2/acceptance.md)。
+当前已完成 **步骤 6：M3 任务开发与替身联调**，保留在 `feat/m3-pocketflow-runner`，尚未合并 main。M2 真实项目地图与持久化已经在 main；M3 新增后台任务、阶段日志、取消、历史重开、Markdown 预览和下载。
 
-真实工作台尚不执行项目或调用模型；原有 M1 演示工作台保留独立入口。下一步是步骤 6，需另行开始。
+当前运行窗口明确标注 **“替身验证 · 无模型”**，输出是固定测试内容。本步没有发送真实模型请求，M3 的真实生成验收留到步骤 7。实际截图与验证见 [步骤 6 记录](evidence/m3/step-6-check.md)，配置和任务接口见 [任务服务说明](docs/07-task-runner.md)。
 
-## 启动后台（M2）
+## 启动后台
 
 在另一个终端运行：
 
@@ -25,9 +25,11 @@ cd '/Users/Vibe coding/AI_product/AI Program/RepoLens/server'
 .venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-打开 **http://127.0.0.1:8000/docs** 查看健康检查、项目导入、列表、详情和源码接口。新环境列表为空；本机已经保存本次验证的 PocketFlow 快照。`Ctrl+C` 停止；重启会继续使用同一 SQLite 数据库。前端仍按下方方式单独启动。
+打开 **http://127.0.0.1:8000/docs** 查看健康检查、项目导入、源码以及任务／日志／产物接口。新环境列表为空；本机已经保存本次验证的 PocketFlow 快照。`Ctrl+C` 停止；重启会继续使用同一 SQLite 数据库；成功结果可重开，未完成任务标记为“中断”，不自动续跑。前端仍按下方方式单独启动。
 
 本机 Python 3.14.6 的独立虚拟环境已安装。首次在其他环境安装，在 `server/` 执行 `python3.14 -m venv .venv` 和 `.venv/bin/python -m pip install -r requirements.lock`。后台启动会自动迁移；也可执行 `.venv/bin/python -m app.migrate`。验证命令为 `.venv/bin/python -m pytest -q`。
+
+PocketFlow 依赖另装在 `server/pocketflow/.venv/`，固定来源、Commit、许可证和安装命令见 [PocketFlow 环境说明](server/pocketflow/README.md)。替身任务只使用后台环境；真实入口环境本步仅验证依赖和 `--help`。没有启用真实模型的配置开关，添加密钥不会自动改变运行模式。后台保持单进程，不添加 `--workers`。
 
 实际数据库位于被忽略的 `var/repolens.sqlite3`，迁移与模型在 `server/`，数据不会随 Git 提交保存。详细依赖、接口字段、数据目录和迁移规则见 [后台 README](server/README.md)。
 
@@ -47,7 +49,9 @@ npm run dev
 1. 先启动后台，再启动前端。点击“扫描 PocketFlow 样本”读取本地上游 Git HEAD，或点击“选择本地文件夹”上传选定目录。
 2. 工作台显示“真实快照”。点击目录逐级展开，选择 `main.py`、`flow.py`、`nodes.py` 或 `utils` 内的文件，点击定义／入口行号查看已校验的源码。
 3. 刷新页面，或停掉后台再启动，仍可打开相同项目 URL；首页“已保存的项目”也可重开。数据位于 `var/`，不是浏览器缓存。
-4. 想对比原有交互，点击“进入 PocketFlow 示例工作台 · 演示”或右侧“查看独立演示模式”。演示模式可修改表单、模拟成功／失败、停止和查看预置章节。
+4. 在真实工作台右侧选择分析范围、任务语言、主题数和替身情境，点击“启动替身任务”。成功后查看结果、切换 Markdown 章节并下载；选择失败／慢速情境检查失败与取消。任务、参数、日志和产物保存到本机。
+5. 刷新后从“运行历史”重开结果。修改当前表单不改变历史任务参数。未成功任务不展示成功产物；后台关闭时活动任务会中断。
+6. 想对比原有交互，点击“进入 PocketFlow 示例工作台 · 演示”或右侧“打开 M1 浏览器演示”。这个独立入口仍使用浏览器内预置数据。
 
 真实地图通过同源 `/api` 代理连接 `127.0.0.1:8000`，默认前端地址仍是 5173；如需改后端地址，在启动 Vite 时设置 `REPOLENS_API_PROXY`（仅本机配置，不是用户仓库输入）。生产构建不自带 Python 后台或代理，外部部署尚未配置；本地 `npm run preview` 也配置了相同代理。
 
@@ -65,7 +69,7 @@ npm run build
 npm run test:e2e
 ```
 
-构建命令同时检查 TypeScript，产物位于被忽略的 `web/dist/`。浏览器测试使用本机 Google Chrome，自动启动 `127.0.0.1:5174` 测试前端和 `127.0.0.1:8001` 隔离测试后台；先按上文安装 `server/.venv`，两个端口需空闲。测试数据位于 `var/tests/`，不修改开发数据库。其他电脑若未安装 Chrome，可先运行 `npx playwright install chrome`。测试临时截图与失败轨迹在被忽略的 `web/test-results/`；当前验收证据见 [M2 验收记录](evidence/m2/acceptance.md)；此前演示验收保留在 [M1 验收记录](evidence/m1/acceptance.md)。
+构建命令同时检查 TypeScript，产物位于被忽略的 `web/dist/`。浏览器测试使用本机 Google Chrome，自动启动 `127.0.0.1:5174` 测试前端和 `127.0.0.1:8001` 隔离测试后台；先按上文安装 `server/.venv`，两个端口需空闲。测试数据位于 `var/tests/`，不修改开发数据库。其他电脑若未安装 Chrome，可先运行 `npx playwright install chrome`。测试临时截图与失败轨迹在被忽略的 `web/test-results/`；本步验证见 [M3 步骤 6 记录](evidence/m3/step-6-check.md)（44 项后台测试、16 项浏览器测试通过）；项目地图验收见 [M2 验收记录](evidence/m2/acceptance.md)；此前演示验收保留在 [M1 验收记录](evidence/m1/acceptance.md)。
 
 构建后如需检查生产产物，运行 `npm run preview` 并打开 http://127.0.0.1:4173/ 。
 
@@ -75,7 +79,8 @@ npm run test:e2e
 - `web/src/pages/`：输入页与工作台；`web/src/components/`：文件夹、解释、表单、结果组件。
 - `web/src/demo/`：固定演示样本与预置章节；`web/src/hooks/`：模拟运行状态；`web/tests/`：浏览器关键路径检查。
 - `web/src/api/`：真实 API 客户端；`RepositoryPage` 展示真实工作台，演示数据继续独立保存。
-- `server/`：FastAPI、导入与静态扫描、SQLite 迁移、源码接口和持久化测试。
+- `server/`：FastAPI、导入与静态扫描、SQLite 迁移、源码接口、任务与产物服务；`server/app/prompts/` 存职责补充提示词。
+- `server/pocketflow/`：固定上游版本与独立依赖环境说明、完整锁文件。
 - `var/`：被忽略的数据库、快照和运行数据；不随 Git 提交。
 - `upstream/`：候选上游项目目录；PocketFlow 已下载，其余目录保持为空。
 - `notes/`：逐项目拆解笔记。

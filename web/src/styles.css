@@ -214,3 +214,11 @@ fieldset { padding: 0; margin: 0; border: 0; min-width: 0; }
   .repository-tree { max-height: 220px; }
   .import-actions > button { width: 100%; }
 }
+
+.task-state { margin: 18px 0; border-top: 1px solid var(--line); padding-top: 14px; font-size: 13px; }
+.task-state .run-logs pre { max-height: 210px; overflow-y: auto; }
+.generated-markdown { margin: 24px 0; line-height: 1.8; overflow-wrap: anywhere; }
+.generated-markdown h1 { font-size: 27px; }
+.generated-markdown pre { overflow-x: auto; background: #f4f8f5; padding: 14px; border-radius: 10px; }
+.generated-markdown code { font-family: ui-monospace, monospace; }
+.task-result .evidence-card { margin-top: 24px; }

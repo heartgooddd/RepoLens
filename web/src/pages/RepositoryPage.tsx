@@ -1,5 +1,8 @@
 import { useEffect, useState } from 'react'
 import { project, source } from '../api/projects'
+import { TaskPanel } from '../components/TaskPanel'
+import { TaskResult } from '../components/TaskResult'
+import type { Run } from '../api/runs'
 import type { Detail, Snapshot, SourceSlice } from '../api/projects'
 
 const parent = (path: string) => path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '.'
@@ -32,6 +35,7 @@ function RepositoryWorkspace({ detail }: { detail: Detail }) {
 }
 
 function SnapshotWorkspace({ snapshot, name }: { snapshot: Snapshot; name: string }) {
+  const [result, setResult] = useState<Run>()
   const [folderPath, setFolderPath] = useState('.')
   const [filePath, setFilePath] = useState(snapshot.files.find(file => file.path === 'main.py')?.path || snapshot.files[0]?.path || '')
   const [start, setStart] = useState(1)
@@ -50,7 +54,7 @@ function SnapshotWorkspace({ snapshot, name }: { snapshot: Snapshot; name: strin
     return () => controller.abort()
   }, [snapshot.id, filePath, start])
   function chooseFolder(path: string) {
-    setFolderPath(path); setFilePath(snapshot.files.find(file => parent(file.path) === path)?.path || ''); setStart(1)
+    setResult(undefined); setFolderPath(path); setFilePath(snapshot.files.find(file => parent(file.path) === path)?.path || ''); setStart(1)
     if (window.innerWidth < 761) scroll('folder-detail')
   }
   return <>
@@ -64,7 +68,7 @@ function SnapshotWorkspace({ snapshot, name }: { snapshot: Snapshot; name: strin
         <div className="side-footer">只展示过滤后保存的文本文件。目录结构来自此快照，不包含环境文件、依赖或二进制资源。</div>
       </aside>
       <section className="panel main-panel" id="folder-detail" aria-label="真实源码与说明">
-        <div className="main-top"><div className="breadcrumbs">{name} / {folderPath}</div><div className="folder-title-row"><h2>{card?.title ?? folderPath}</h2><span className={`tag ${card?.claim_type === 'unverified' ? 'amber' : ''}`}>{card?.claim_type === 'fact' ? '源码事实' : card?.claim_type === 'inference' ? '推断' : '职责待核实'}</span></div><p className="folder-description">{card?.description}</p>
+        <div hidden={!!result}><div className="main-top"><div className="breadcrumbs">{name} / {folderPath}</div><div className="folder-title-row"><h2>{card?.title ?? folderPath}</h2><span className={`tag ${card?.claim_type === 'unverified' ? 'amber' : ''}`}>{card?.claim_type === 'fact' ? '源码事实' : card?.claim_type === 'inference' ? '推断' : '职责待核实'}</span></div><p className="folder-description">{card?.description}</p>
           {card?.inference && <div className="evidence-card"><b>名称推断 · 待核实</b><p>{card.inference}</p></div>}
         </div>
         <div className="main-content">
@@ -84,9 +88,10 @@ function SnapshotWorkspace({ snapshot, name }: { snapshot: Snapshot; name: strin
             </section>
           </>}
         </div>
+      </div>{result && <TaskResult key={result.id} run={result} onBack={() => setResult(undefined)} />}
       </section>
-      <aside className="panel run-panel" id="run-panel" aria-label="真实项目运行窗口"><div className="panel-pad"><div className="run-header"><h2 className="small-title">运行窗口</h2><span className="tag amber">M3 待接入</span></div><h3 className="run-title">地图已保存</h3><p className="run-subtitle">本次完成源码扫描与证据索引。生成教程和执行项目将在下一阶段接入。</p><button className="primary full-width" disabled>生成项目导览 · 尚未接入</button><a className="secondary full-width" href="#/workspace">查看独立演示模式</a><div className="snapshot-meta"><h3>来源与保存</h3><p>快照 ID<br /><code>{snapshot.id}</code></p><p>{snapshot.commit_sha ? 'Git Commit' : '内容版本'}<br /><code>{snapshot.commit_sha || snapshot.revision}</code></p><p>保留文件：{snapshot.files.length}<br />保存时间：{new Date(snapshot.created_at).toLocaleString()}</p></div><p className="muted">刷新或重启后台后，可从首页项目列表重新打开。原始目录变动不会覆盖此快照。</p></div></aside>
+      <TaskPanel snapshot={snapshot} onResult={run=>{setResult(run);scroll('folder-detail')}} />
     </div>
-    <p className="footnote">真实文件与 SQLite 记录 · 事实附源码位置，名称推断单独标记 · 未调用模型、未执行目标代码。</p>
+    <p className="footnote">真实文件与 SQLite 记录 · 事实附源码位置，名称推断单独标记 · 任务使用替身进程，不调用模型或执行输入代码。</p>
   </>
 }

@@ -17,18 +17,28 @@ from .repository import get_project, list_projects
 from .importer import ImportRequest, ImportResult, import_project
 from .request_limits import ImportBodyLimit, ORIGINS
 from .source import SourceSlice, read_source
+from .runner import Runner
+from .run_api import routes
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or Settings.from_env()
 
+    runner = Runner(settings)
+
     @asynccontextmanager
     async def lifespan(_: FastAPI):
         settings.prepare()
         migrate(settings.database)
-        yield
+        runner.start()
+        try:
+            yield
+        finally:
+            await runner.close()
 
     app = FastAPI(title="RepoLens API", version="0.2.0", lifespan=lifespan)
+    app.state.runner = runner
+    app.include_router(routes(settings, runner))
     app.add_middleware(ImportBodyLimit)
     app.add_middleware(
         CORSMiddleware,

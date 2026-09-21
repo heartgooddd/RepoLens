@@ -1,6 +1,6 @@
 # RepoLens 系统架构与数据保存方案
 
-> 状态：架构设计，M1 页面和 M2 扫描、保存、联调已实施（2026-09-21）；运行器留到 M3。配合[页面蓝图](01-product-blueprint.md)和[实施路线](02-delivery-roadmap.md)使用。
+> 状态：M1、M2 与 M3 步骤 6 已实施（2026-09-21）；任务当前为替身模式，真实模型执行留到步骤 7。配合[页面蓝图](01-product-blueprint.md)和[实施路线](02-delivery-roadmap.md)使用。
 
 具体开发任务和可复制提示词见 [00 创作总指南](00-creation-guide.md)：步骤 4–5 接数据库和真实地图，步骤 6–7 接运行任务。版本管理见 [04 Git 操作手册](04-git-workflow.md)。
 
@@ -58,7 +58,7 @@ SQLite 的数据库是本机文件，不需要另起一个数据库服务；Fast
 
 1. 用户从页面打开内置 PocketFlow 示例，或主动选择本地目录。浏览器目录选择只提供文件和相对路径，后台把上传内容放进独立快照；浏览器不会得到用户电脑的绝对路径。[MDN 目录选择说明](https://developer.mozilla.org/en-US/docs/Web/API/HTMLInputElement/webkitdirectory)。
 2. 后台扫描快照，写入 `projects`、`snapshots`、`folder_cards`、`evidence_refs`。页面请求项目详情并画出文件夹地图。内置示例可从其 Git 仓库获取 Commit；普通上传使用内容快照标识。
-3. 用户在运行窗口填写参数并点击“生成项目导览”。后台校验参数，先插入一条 `runs` 记录，再启动 PocketFlow。
+3. 用户在运行窗口填写参数并点击“生成项目导览”。后台校验参数，先插入一条 `runs` 记录，再启动固定进程（步骤 6 仅替身，步骤 7 接通 PocketFlow）。
 4. 运行中，后台更新任务状态、阶段和日志文件；页面轮询状态。成功后，后台登记 `index.md` 等产物到 `artifacts`，页面预览结果。
 5. 页面刷新后仍从 SQLite 找到项目、运行历史和产物路径；若文件已经丢失，显示“产物缺失”，不把记录当成成功结果。
 
@@ -108,3 +108,13 @@ RepoLens/
 - `GET /api/snapshots/{id}/source` 只读已登记文件，检查相对路径、链接和 SHA-256，分页返回带行号文本；修改或丢失的快照返回 409。
 - React 在 `#/projects/<id>` 通过 API 读回，首页列 SQLite 中的项目；演示入口 `#/workspace` 独立保留。Vite 本机代理 `/api` 到后台。
 - 限制与请求字段见 [后台 README](../server/README.md)，实际验收见 [M2 记录](../evidence/m2/acceptance.md)。运行任务、完整符号图、GitHub 远程下载仍未实现。
+
+
+## 9. M3 步骤 6 的落地约定
+
+- 版本 003 新增 `runs`、`artifacts`；运行来源关联已登记 snapshot_id，范围限定已有目录。启动前检查字节数和 SHA-256，复制到运行目录作为只读分析输入，不执行上传源码。
+- `Runner` 使用固定参数数组启动监督进程和替身子进程，独立 cwd／HOME／环境；当前不会继承模型密钥或发送真实请求。上游原始源码保持不变，PocketFlow 隔离环境位于 `server/pocketflow/.venv/`，固定入口命令已准备，仅验证 `--help`。
+- 运行状态、阶段、参数和索引在 SQLite；日志与 Markdown 在 `var/runs/`。取消停止进程组，后台重启将遗留活动任务标记 interrupted，不续跑。成功状态与产物登记在同一事务中提交。
+- React 轮询任务和增量日志，刷新后重开历史。Markdown 禁止原始 HTML，外部图片不加载，章节只允许切换本次已登记产物。下载与读取都核对内容哈希。
+- 职责提示词在 `server/app/prompts/` 版本管理；引用检查同一快照的文件、行号、原文。匹配也只标推断，不匹配标待核实，不覆盖原始事实。本步用固定输出校验，模型补充留到步骤 7。
+- 当前是本机单进程、单活动任务，没有分布式队列或操作系统沙箱。具体 API／配置见 [任务服务说明](07-task-runner.md)，本步证据见 [步骤 6 记录](../evidence/m3/step-6-check.md)。

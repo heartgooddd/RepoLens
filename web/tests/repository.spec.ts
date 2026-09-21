@@ -38,7 +38,7 @@ test('真实样本地图、源码证据、刷新和项目列表重开', async ({
   await page.getByRole('button', { name: /^call_llm ·/ }).click()
   await expect(page.getByRole('region', { name: '真实源码片段' })).toContainText('def call_llm')
   await expect(page.getByText('名称推断 · 待核实')).toBeVisible()
-  await expect(page.getByRole('button', { name: '生成项目导览 · 尚未接入' })).toBeDisabled()
+  await expect(page.getByRole('button', { name: '启动替身任务' })).toBeEnabled()
   await capture(page, info, 'real-utils.png')
   for (const width of [320, 390, 768, 1440]) {
     await page.setViewportSize({ width, height: 1000 })
@@ -50,7 +50,7 @@ test('真实样本地图、源码证据、刷新和项目列表重开', async ({
   await page.locator(`a[href="${new URL(url).hash}"]`).click()
   await expect(page).toHaveURL(url)
   await expect(page.getByRole('heading', { name: 'PocketFlow 项目地图' })).toBeVisible()
-  await page.getByRole('link', { name: '查看独立演示模式' }).click()
+  await page.getByRole('link', { name: '打开 M1 浏览器演示' }).click()
   await expect(page.getByText('演示模式 · 不调用模型')).toBeVisible()
   expect(errors).toEqual([])
 })
