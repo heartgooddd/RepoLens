@@ -21,6 +21,7 @@ STATE = ROOT / 'var/local-delivery'
 def reserve_port(port):
     listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
+        listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         listener.bind(('127.0.0.1', port))
         listener.listen(128)
         return listener
@@ -64,6 +65,19 @@ def check_installation():
     return python
 
 
+def authorized_stop(request, token):
+    return (isinstance(request, dict) and request.get('action') == 'stop' and
+            isinstance(request.get('token'), str) and hmac.compare_digest(request['token'], token))
+
+
+def service_environment(environ, data):
+    environment = {**environ, 'REPOLENS_DATA_DIR': str(data), 'REPOLENS_SERVE_WEB': '1',
+                   'REPOLENS_ENABLE_REAL_RUN': environ.get('REPOLENS_ENABLE_REAL_RUN', '0'), 'PYTHONUNBUFFERED': '1'}
+    environment.pop('PYTHONPATH', None)
+    environment.pop('PYTHONHOME', None)
+    return environment
+
+
 def start(*, browser=True):
     if sys.platform != 'darwin':
         raise DeliveryError('当前双击交付仅支持 macOS。')
@@ -79,12 +93,7 @@ def start(*, browser=True):
             raise DeliveryError('本目录已有启动器或安装程序运行。请使用原窗口或双击 Stop.command。') from None
         python = check_installation()
         data = data_directory()
-        environment = {**os.environ, 'REPOLENS_DATA_DIR': str(data), 'REPOLENS_SERVE_WEB': '1',
-                       'REPOLENS_ENABLE_REAL_RUN': os.environ.get('REPOLENS_ENABLE_REAL_RUN', '1'),
-                       'PYTHONUNBUFFERED': '1'}
-        # Strip ambient Python injection; model keys remain in the backend environment/file only.
-        environment.pop('PYTHONPATH', None)
-        environment.pop('PYTHONHOME', None)
+        environment = service_environment(os.environ, data)
         stopped = False
         def request_stop(*_):
             nonlocal stopped
@@ -128,7 +137,7 @@ def start(*, browser=True):
                         connection.settimeout(1)
                         try:
                             request = json.loads(connection.recv(1024))
-                            if request.get('action') == 'stop' and hmac.compare_digest(str(request.get('token', '')), token):
+                            if authorized_stop(request, token):
                                 connection.sendall(b'stopping\n')
                                 stopped = True
                             else:

@@ -99,3 +99,31 @@ def test_control_record_has_private_permissions(tmp_path):
     common.write_private_json(path, {'token': 'test only'})
     assert json.loads(path.read_text()) == {'token': 'test only'}
     assert path.stat().st_mode & 0o777 == 0o600
+
+
+def test_immediate_restart_after_serving_a_connection():
+    local = module('local')
+    import socket
+    listener = local.reserve_port(0)
+    port = listener.getsockname()[1]
+    with socket.create_connection(('127.0.0.1', port)) as client:
+        peer, _ = listener.accept()
+        peer.shutdown(socket.SHUT_RDWR)
+        peer.close()
+    listener.close()
+    with local.reserve_port(port):
+        pass
+
+
+@pytest.mark.parametrize('body', [None, [], 1, 'stop', {}, {'action':'stop','token':'wrong'}])
+def test_control_requires_authenticated_object(body):
+    local = module('local')
+    assert hasattr(local, 'authorized_stop'), 'Missing control request validator'
+    assert local.authorized_stop(body, 'secret') is False
+
+
+def test_real_mode_requires_explicit_opt_in():
+    local = module('local')
+    assert hasattr(local, 'service_environment')
+    assert local.service_environment({}, '/data')['REPOLENS_ENABLE_REAL_RUN'] == '0'
+    assert local.service_environment({'REPOLENS_ENABLE_REAL_RUN':'1'}, '/data')['REPOLENS_ENABLE_REAL_RUN'] == '1'
