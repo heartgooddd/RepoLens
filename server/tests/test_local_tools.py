@@ -115,7 +115,7 @@ def test_immediate_restart_after_serving_a_connection():
         pass
 
 
-@pytest.mark.parametrize('body', [None, [], 1, 'stop', {}, {'action':'stop','token':'wrong'}])
+@pytest.mark.parametrize('body', [None, [], 1, 'stop', {}, {'action':'stop','token':'wrong'}, {'action':'stop','token':'é'}])
 def test_control_requires_authenticated_object(body):
     local = module('local')
     assert hasattr(local, 'authorized_stop'), 'Missing control request validator'

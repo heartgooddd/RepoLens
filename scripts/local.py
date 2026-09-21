@@ -67,7 +67,7 @@ def check_installation():
 
 def authorized_stop(request, token):
     return (isinstance(request, dict) and request.get('action') == 'stop' and
-            isinstance(request.get('token'), str) and hmac.compare_digest(request['token'], token))
+            isinstance(request.get('token'), str) and hmac.compare_digest(request['token'].encode(), token.encode()))
 
 
 def service_environment(environ, data):
