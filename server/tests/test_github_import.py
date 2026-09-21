@@ -1,5 +1,7 @@
+import asyncio
 import io
 import tarfile
+import threading
 import time
 
 import httpx
@@ -8,6 +10,7 @@ from fastapi.testclient import TestClient
 
 from app.github_importer import MAX_ARCHIVE_BYTES, MAX_ARCHIVE_FILES, read_archive
 from app.main import create_app
+from app import github_importer
 
 
 POCKETFLOW_URL = "https://github.com/The-Pocket/PocketFlow-Tutorial-Codebase-Knowledge"
@@ -58,14 +61,18 @@ class GitHubFixture:
         return httpx.Response(500, json={"message": f"unexpected URL {request.url}"})
 
 
-def wait_for_job(client: TestClient, job_id: str, timeout: float = 3) -> dict:
+def wait_for_terminal(client: TestClient, path: str, active: tuple[str, ...], timeout: float = 3) -> dict:
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
-        job = client.get(f"/api/github-imports/{job_id}").json()
-        if job["status"] in {"succeeded", "failed", "interrupted"}:
-            return job
+        value = client.get(path).json()
+        if value["status"] not in active:
+            return value
         time.sleep(0.01)
-    raise AssertionError(f"GitHub import did not finish: {job}")
+    raise AssertionError(f"Operation did not finish: {value}")
+
+
+def wait_for_job(client: TestClient, job_id: str, timeout: float = 3) -> dict:
+    return wait_for_terminal(client, f"/api/github-imports/{job_id}", ("queued", "running"), timeout)
 
 
 def start(client: TestClient, url: str = POCKETFLOW_URL) -> dict:
@@ -168,13 +175,7 @@ def test_archive_paths_must_stay_inside_one_repository_root(settings):
 
 
 def wait_for_job_like_run(client: TestClient, run_id: str, timeout: float = 3) -> dict:
-    deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        run = client.get(f'/api/runs/{run_id}').json()
-        if run['status'] not in ('queued', 'running', 'cancelling'):
-            return run
-        time.sleep(.01)
-    raise AssertionError(f'Run did not finish: {run}')
+    return wait_for_terminal(client, f'/api/runs/{run_id}', ('queued', 'running', 'cancelling'), timeout)
 
 
 def test_archive_byte_and_entry_limits_are_enforced_before_writes():
@@ -203,3 +204,45 @@ def test_network_timeout_becomes_a_stable_failed_job(settings):
         assert job['status'] == 'failed'
         assert job['error_code'] == 'github_timeout'
         assert client.get('/api/projects').json()['total'] == 0
+
+
+def test_scanning_stage_is_visible_while_scanner_is_actually_running(settings, monkeypatch):
+    fixture = GitHubFixture()
+    entered, release = threading.Event(), threading.Event()
+    real_scan = github_importer.scan
+
+    def paused_scan(files, snapshot_id):
+        entered.set()
+        assert release.wait(2)
+        return real_scan(files, snapshot_id)
+
+    monkeypatch.setattr(github_importer, 'scan', paused_scan)
+    app = create_app(settings)
+    app.state.github_importer.transport = httpx.MockTransport(fixture)
+    with TestClient(app) as client:
+        response = client.post('/api/github-imports', json={'repository_url': POCKETFLOW_URL})
+        assert entered.wait(2)
+        try:
+            job = client.get(f"/api/github-imports/{response.json()['id']}").json()
+            assert job['stage'] == 'scanning'
+            assert job['progress'] == 75
+        finally:
+            release.set()
+        assert wait_for_job(client, response.json()['id'])['status'] == 'succeeded'
+
+
+def test_total_remote_deadline_cancels_network_before_any_snapshot_write(settings):
+    class SlowTransport(httpx.AsyncBaseTransport):
+        async def handle_async_request(self, request: httpx.Request) -> httpx.Response:
+            await asyncio.sleep(.2)
+            return httpx.Response(200, request=request, json={"default_branch": "main", "private": False})
+
+    app = create_app(settings)
+    app.state.github_importer.transport = SlowTransport()
+    app.state.github_importer.network_deadline = .03
+    with TestClient(app) as client:
+        job = start(client)
+        assert job['status'] == 'failed' and job['error_code'] == 'github_timeout'
+        time.sleep(.25)
+        assert client.get('/api/projects').json()['total'] == 0
+        assert list((settings.data_dir / 'snapshots').iterdir()) == []

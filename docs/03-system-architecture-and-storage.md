@@ -122,6 +122,6 @@ RepoLens/
 ## 10. M4 公开 GitHub 导入与缓存
 
 - 首页创建持久化导入任务；后台只接受公开 `github.com/owner/repo` HTTPS 根地址，通过 GitHub API 解析默认分支当前 Commit，再下载该 Commit 的 codeload tar.gz。页面轮询阶段、百分比、固定版本和错误。
-- 归档按压缩大小、条目、解包总量、保留文件数／大小和总时限约束；逐成员验证唯一根、相对路径、类型及冲突，从不执行仓库文件。规则见 [M4说明](09-github-import.md)。
+- GitHub解析／归档下载受30秒网络时限约束；归档另按压缩大小、条目、解包总量和保留文件数／大小约束。逐成员验证唯一根、相对路径、类型及冲突，从不执行仓库文件。规则见 [M4说明](09-github-import.md)。
 - `github_sources + github_snapshot_cache` 是源码缓存：同仓库同 Commit 返回同一 snapshot；新 Commit 在同一 project 下新增 snapshot。`runs.result_cache_key` 是结果缓存：只有相同快照、模型、提示词和全部参数的成功真实结果才可复用，且复用前重验产物哈希。
 - 地图扫描、源码证据和运行任务继续只接受登记的 snapshot_id；远程来源没有新增可执行入口。实际远程 PocketFlow、错误和版本变化见 [M4验收](../evidence/m4/acceptance.md)。

@@ -206,7 +206,7 @@ curl 'http://127.0.0.1:8000/api/projects?limit=20&offset=0'
 
 `POST /api/github-imports` 接受 `{"repository_url":"https://github.com/owner/repo"}` 并返回 `202` 导入任务；`GET /api/github-imports/{id}` 返回阶段、百分比、Commit、缓存命中、项目／快照ID和错误。详细状态、限制、缓存键和错误码见 [M4说明](../docs/09-github-import.md)。
 
-后台只访问固定的 `api.github.com` 和 `codeload.github.com`；不 follow redirect，不 clone，不执行hooks或仓库文件。整体30秒；压缩16MiB、2000条目、解包32MiB，之后继续应用M2的500文件／8MiB／单文件1MiB上限。归档逐成员验证且不调用通用extract。
+后台只访问固定的 `api.github.com` 和 `codeload.github.com`；不 follow redirect，不 clone，不执行hooks或仓库文件。远程解析与归档下载合计30秒，超时后不会开始本地保存；压缩16MiB、2000条目、解包32MiB，之后继续应用M2的500文件／8MiB／单文件1MiB上限。归档逐成员验证且不调用通用extract。
 
 无Token时使用GitHub公开API额度；可在进程环境设置 `REPOLENS_GITHUB_TOKEN`，不会写入数据库或页面。404、限流、超时、无效归档和越界路径均进入失败终态，不登记成功快照。验收见 [M4记录](../evidence/m4/acceptance.md)。
 
@@ -236,4 +236,4 @@ curl 'http://127.0.0.1:8000/api/projects?limit=20&offset=0'
 
 完整字段、模式限制、价格／调用上限见 [任务说明](../docs/07-task-runner.md)；本机模型配置见 [OpenRouter 设置](../docs/08-openrouter-setup.md)。默认模式 `stub`，开启 `REPOLENS_ENABLE_REAL_RUN=1` 后允许请求 `mode=pocketflow`，仅固定上游快照 utils、中文、最多3主题。API不接受浏览器传入密钥或模型地址。`GET /api/runner` 返回配置布尔状态，不回传密钥。
 
-迁移当前版本5，模型字段和旧记录的结果缓存键可空。真实结果缓存键包含快照版本、模型、提示词和全部分析参数；复用前重验产物。模拟模型验证使用假密钥和MockTransport，不消耗模型额度。真实验收证据见 [M3](../evidence/m3/acceptance.md)，缓存边界见 [M4](../evidence/m4/acceptance.md)。
+迁移当前版本5，模型字段和旧记录的结果缓存键可空。真实结果缓存键包含snapshot_id、快照版本、模型、提示词和全部分析参数；只复用同一快照并在复用前重验产物。模拟模型验证使用假密钥和MockTransport，不消耗模型额度。真实验收证据见 [M3](../evidence/m3/acceptance.md)，缓存边界见 [M4](../evidence/m4/acceptance.md)。

@@ -71,13 +71,13 @@ def test_success_has_durable_parameters_stages_logs_and_safe_artifacts(settings)
 
 
 def test_result_cache_key_separates_model_and_every_analysis_parameter():
-    base = dict(snapshot_revision='sha256:abc', mode='pocketflow', provider='OPENROUTER', model='model-a',
+    base = dict(snapshot_id='snapshot-a', snapshot_revision='sha256:abc', mode='pocketflow', provider='OPENROUTER', model='model-a',
                 prompt_version='folder-responsibility-v1', language='zh', topics=3, scope='utils', scenario='success')
     assert hasattr(runner, 'result_cache_key')
     original = runner.result_cache_key(**base)
     assert original == runner.result_cache_key(**base)
     for field, value in {
-        'snapshot_revision': 'sha256:def', 'mode': 'stub', 'provider': 'OTHER', 'model': 'model-b',
+        'snapshot_id': 'snapshot-b', 'snapshot_revision': 'sha256:def', 'mode': 'stub', 'provider': 'OTHER', 'model': 'model-b',
         'prompt_version': 'folder-responsibility-v2', 'language': 'en', 'topics': 2, 'scope': '.', 'scenario': 'failure',
     }.items():
         assert runner.result_cache_key(**{**base, field: value}) != original

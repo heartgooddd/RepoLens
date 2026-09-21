@@ -38,6 +38,13 @@ class Project(Record):
     updated_at: AwareDatetime
 
 
+class GitHubRepositoryRef(Record):
+    repository_key: str = Field(min_length=3, max_length=201)
+    canonical_url: str = Field(min_length=20, max_length=500)
+    owner: str = Field(min_length=1, max_length=100)
+    repo: str = Field(min_length=1, max_length=100)
+
+
 class ProjectSummary(Project):
     snapshot_count: int
 

@@ -10,6 +10,7 @@ import tarfile
 import unicodedata
 from datetime import datetime, timezone
 from pathlib import PurePosixPath
+from typing import Literal
 from urllib.parse import quote, urlsplit
 from uuid import UUID, uuid4
 
@@ -20,7 +21,8 @@ from pydantic import AwareDatetime, Field
 from .config import Settings
 from .db import connect
 from .import_policy import MAX_FILE, MAX_FILES, MAX_TOTAL, excluded, fail, supported, validate_path
-from .models import Project, Record, Snapshot, SnapshotFile
+from .models import FolderCard, GitHubRepositoryRef, Project, Record, Snapshot, SnapshotFile
+from .repository import create_github_snapshot, get_cached_github_snapshot
 from .scanner import scan
 
 MAX_ARCHIVE_BYTES = 16 * 1024 * 1024
@@ -35,13 +37,17 @@ class GitHubImportRequest(Record):
     repository_url: str = Field(max_length=1000)
 
 
+ImportStatus = Literal["queued", "running", "succeeded", "failed", "interrupted"]
+ImportStage = Literal["queued", "resolving", "downloading", "extracting", "scanning", "saving", "complete", "error", "interrupted"]
+
+
 class GitHubImportJob(Record):
     id: UUID
     repository_url: str
     canonical_url: str
     repository_key: str
-    status: str
-    stage: str
+    status: ImportStatus
+    stage: ImportStage
     progress: int
     commit_sha: str | None
     project_id: UUID | None
@@ -58,7 +64,7 @@ def now() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z")
 
 
-def parse_github_url(value: str) -> tuple[str, str, str, str]:
+def parse_github_url(value: str) -> GitHubRepositoryRef:
     try:
         parsed = urlsplit(value.strip())
         port = parsed.port
@@ -77,9 +83,9 @@ def parse_github_url(value: str) -> tuple[str, str, str, str]:
         repo = repo[:-4]
     if not PART_PATTERN.fullmatch(owner) or not PART_PATTERN.fullmatch(repo) or owner in {".", ".."} or repo in {".", ".."}:
         fail("invalid_github_url", "GitHub 仓库 owner 或 repo 格式不合法。")
-    key = f"{owner.casefold()}/{repo.casefold()}"
-    canonical = f"https://github.com/{owner}/{repo}"
-    return owner, repo, key, canonical
+    return GitHubRepositoryRef(owner=owner, repo=repo,
+                               repository_key=f"{owner.casefold()}/{repo.casefold()}",
+                               canonical_url=f"https://github.com/{owner}/{repo}")
 
 
 def _unsafe(message: str = "GitHub 归档包含越界路径、链接或不受支持的特殊文件。") -> None:
@@ -157,44 +163,16 @@ def read_archive(raw: bytes) -> tuple[dict[str, bytes], int]:
     return retained, skipped
 
 
-def _insert_record(db, table: str, row: dict) -> None:
-    columns = ", ".join(row)
-    parameters = ", ".join("?" for _ in row)
-    db.execute(f"INSERT INTO {table} ({columns}) VALUES ({parameters})", tuple(row.values()))
-
-
-def _insert_snapshot(db, snapshot: Snapshot) -> None:
-    data = snapshot.model_dump(mode="json")
-    cards = data.pop("folder_cards")
-    files = data.pop("files")
-    _insert_record(db, "snapshots", data)
-    for file in files:
-        _insert_record(db, "snapshot_files", {"snapshot_id": str(snapshot.id), **file})
-    for card in cards:
-        refs = card.pop("evidence_refs")
-        _insert_record(db, "folder_cards", card)
-        for ref in refs:
-            _insert_record(db, "evidence_refs", ref)
-
-
-def cached_snapshot(database, repository_key: str, commit: str):
-    with connect(database) as db:
-        return db.execute("""SELECT s.project_id, c.snapshot_id FROM github_snapshot_cache c
-                             JOIN snapshots s ON s.id = c.snapshot_id
-                             WHERE c.repository_key = ? AND c.commit_sha = ?""", (repository_key, commit)).fetchone()
-
-
-def save_snapshot(settings: Settings, owner: str, repo: str, key: str, canonical: str, commit: str,
-                  files: dict[str, bytes]) -> tuple[str, str]:
+def save_snapshot(settings: Settings, source: GitHubRepositoryRef, commit: str, files: dict[str, bytes],
+                  snapshot_id: str, folder_cards: list[FolderCard]) -> tuple[str, str]:
     project_id = str(uuid4())
-    snapshot_id = str(uuid4())
     timestamp = now()
     snapshot = Snapshot(
         id=snapshot_id, project_id=project_id, revision=f"git:{commit}", commit_sha=commit,
         storage_path=f"snapshots/{snapshot_id}", created_at=timestamp,
         files=[SnapshotFile(path=path, size_bytes=len(content), sha256=hashlib.sha256(content).hexdigest())
                for path, content in sorted(files.items())],
-        folder_cards=scan(files, snapshot_id),
+        folder_cards=folder_cards,
     )
     destination = settings.data_dir / snapshot.storage_path
     destination.mkdir(exist_ok=False)
@@ -206,27 +184,9 @@ def save_snapshot(settings: Settings, owner: str, repo: str, key: str, canonical
                 _unsafe()
             with target.open("xb") as stream:
                 stream.write(content)
-        with connect(settings.database) as db:
-            db.execute("BEGIN IMMEDIATE")
-            try:
-                source = db.execute("SELECT project_id FROM github_sources WHERE repository_key = ?", (key,)).fetchone()
-                if source:
-                    project_id = source["project_id"]
-                    snapshot = snapshot.model_copy(update={"project_id": UUID(project_id)})
-                    db.execute("UPDATE projects SET updated_at = ?, source_label = ? WHERE id = ?", (timestamp, canonical, project_id))
-                    db.execute("UPDATE github_sources SET updated_at = ?, canonical_url = ? WHERE repository_key = ?", (timestamp, canonical, key))
-                else:
-                    project = Project(id=project_id, name=repo, source_type="github", source_label=canonical,
-                                      created_at=timestamp, updated_at=timestamp)
-                    _insert_record(db, "projects", project.model_dump(mode="json"))
-                    db.execute("INSERT INTO github_sources VALUES (?,?,?,?,?,?,?)",
-                               (key, project_id, canonical, owner, repo, timestamp, timestamp))
-                _insert_snapshot(db, snapshot)
-                db.execute("INSERT INTO github_snapshot_cache VALUES (?,?,?,?)", (key, commit, snapshot_id, timestamp))
-                db.commit()
-            except BaseException:
-                db.rollback()
-                raise
+        project = Project(id=project_id, name=source.repo, source_type="github", source_label=source.canonical_url,
+                          created_at=timestamp, updated_at=timestamp)
+        project_id = create_github_snapshot(settings.database, source, project, snapshot)
     except BaseException:
         shutil.rmtree(destination, ignore_errors=True)
         raise
@@ -239,6 +199,7 @@ class GitHubImporter:
         self.transport = None
         self.tasks: dict[str, asyncio.Task] = {}
         self.lock = asyncio.Lock()
+        self.network_deadline = NETWORK_DEADLINE_SECONDS
 
     def start(self) -> None:
         with connect(self.settings.database) as db:
@@ -253,15 +214,15 @@ class GitHubImporter:
             await asyncio.gather(*list(self.tasks.values()), return_exceptions=True)
 
     def create(self, repository_url: str) -> GitHubImportJob:
-        owner, repo, key, canonical = parse_github_url(repository_url)
+        repository = parse_github_url(repository_url)
         job_id = str(uuid4())
         timestamp = now()
         with connect(self.settings.database) as db:
             db.execute("""INSERT INTO github_import_jobs
                 (id,repository_url,canonical_url,repository_key,status,stage,progress,created_at,updated_at)
                 VALUES (?,?,?,?,'queued','queued',0,?,?)""",
-                (job_id, repository_url.strip(), canonical, key, timestamp, timestamp))
-        task = asyncio.create_task(self.execute(job_id, owner, repo, key, canonical))
+                (job_id, repository_url.strip(), repository.canonical_url, repository.repository_key, timestamp, timestamp))
+        task = asyncio.create_task(self.execute(job_id, repository))
         self.tasks[job_id] = task
         task.add_done_callback(lambda _: self.tasks.pop(job_id, None))
         return self.get(job_id)
@@ -301,7 +262,7 @@ class GitHubImporter:
         except HTTPException:
             raise
         except httpx.TimeoutException:
-            fail("github_timeout", "GitHub 读取超过 30 秒限制，请稍后重试。", 504)
+            fail("github_timeout", "GitHub 连接或单次网络读取超时，请稍后重试。", 504)
         except (httpx.HTTPError, ValueError):
             fail("github_unavailable", "无法安全读取 GitHub，请检查网络后重试。", 502)
 
@@ -314,9 +275,9 @@ class GitHubImporter:
         if response.status_code >= 400:
             fail("github_unavailable", f"GitHub 返回 HTTP {response.status_code}，未创建快照。", 502)
 
-    async def execute(self, job_id: str, owner: str, repo: str, key: str, canonical: str) -> None:
+    async def execute(self, job_id: str, repository: GitHubRepositoryRef) -> None:
         try:
-            async with self.lock, asyncio.timeout(NETWORK_DEADLINE_SECONDS):
+            async with self.lock:
                 self.update(job_id, status="running", stage="resolving", progress=10)
                 headers = {"Accept": "application/vnd.github+json", "User-Agent": "RepoLens-local/0.4",
                            "X-GitHub-Api-Version": "2022-11-28"}
@@ -324,33 +285,35 @@ class GitHubImporter:
                 if token:
                     headers["Authorization"] = f"Bearer {token}"
                 timeout = httpx.Timeout(20, connect=5)
-                async with httpx.AsyncClient(headers=headers, timeout=timeout, follow_redirects=False,
-                                             trust_env=False, transport=self.transport) as client:
-                    base = f"https://api.github.com/repos/{quote(owner, safe='')}/{quote(repo, safe='')}"
-                    repository = (await self.request(client, base)).json()
-                    if repository.get("private") is True or not repository.get("default_branch"):
-                        fail("github_repository_not_found", "只支持无需登录即可读取的公开 GitHub 仓库。", 404)
-                    branch = quote(str(repository["default_branch"]), safe="")
-                    commit_data = (await self.request(client, f"{base}/commits/{branch}")).json()
-                    commit = str(commit_data.get("sha", "")).lower()
-                    if not SHA_PATTERN.fullmatch(commit):
-                        fail("github_invalid_response", "GitHub 未返回可固定的 40 位 Commit。", 502)
-                    self.update(job_id, commit_sha=commit, progress=25)
-                    cached = cached_snapshot(self.settings.database, key, commit)
-                    if cached:
-                        self.update(job_id, status="succeeded", stage="complete", progress=100,
-                                    project_id=cached["project_id"], snapshot_id=cached["snapshot_id"], cache_hit=1)
-                        return
-                    self.update(job_id, stage="downloading", progress=35)
-                    archive_url = f"https://codeload.github.com/{quote(owner, safe='')}/{quote(repo, safe='')}/tar.gz/{commit}"
-                    response = await self.request(client, archive_url, archive=True)
+                async with asyncio.timeout(self.network_deadline):
+                    async with httpx.AsyncClient(headers=headers, timeout=timeout, follow_redirects=False,
+                                                 trust_env=False, transport=self.transport) as client:
+                        base = f"https://api.github.com/repos/{quote(repository.owner, safe='')}/{quote(repository.repo, safe='')}"
+                        metadata = (await self.request(client, base)).json()
+                        if metadata.get("private") is True or not metadata.get("default_branch"):
+                            fail("github_repository_not_found", "只支持无需登录即可读取的公开 GitHub 仓库。", 404)
+                        branch = quote(str(metadata["default_branch"]), safe="")
+                        commit_data = (await self.request(client, f"{base}/commits/{branch}")).json()
+                        commit = str(commit_data.get("sha", "")).lower()
+                        if not SHA_PATTERN.fullmatch(commit):
+                            fail("github_invalid_response", "GitHub 未返回可固定的 40 位 Commit。", 502)
+                        self.update(job_id, commit_sha=commit, progress=25)
+                        cached = get_cached_github_snapshot(self.settings.database, repository.repository_key, commit)
+                        if cached:
+                            self.update(job_id, status="succeeded", stage="complete", progress=100,
+                                        project_id=cached["project_id"], snapshot_id=cached["snapshot_id"], cache_hit=1)
+                            return
+                        self.update(job_id, stage="downloading", progress=35)
+                        archive_url = f"https://codeload.github.com/{quote(repository.owner, safe='')}/{quote(repository.repo, safe='')}/tar.gz/{commit}"
+                        response = await self.request(client, archive_url, archive=True)
                 self.update(job_id, stage="extracting", progress=60)
                 files, skipped = await asyncio.to_thread(read_archive, response.content)
                 self.update(job_id, stage="scanning", progress=75, skipped_count=skipped)
-                # scan() runs during construction in save_snapshot; this separate stage is visible before disk/DB commit.
+                snapshot_id = str(uuid4())
+                folder_cards = await asyncio.to_thread(scan, files, snapshot_id)
                 self.update(job_id, stage="saving", progress=90)
                 project_id, snapshot_id = await asyncio.to_thread(
-                    save_snapshot, self.settings, owner, repo, key, canonical, commit, files)
+                    save_snapshot, self.settings, repository, commit, files, snapshot_id, folder_cards)
                 self.update(job_id, status="succeeded", stage="complete", progress=100,
                             project_id=project_id, snapshot_id=snapshot_id, cache_hit=0)
         except asyncio.CancelledError:
@@ -359,7 +322,7 @@ class GitHubImporter:
             raise
         except TimeoutError:
             self.update(job_id, status="failed", stage="error", progress=100,
-                        error_code="github_timeout", error_message="GitHub 解析、下载和扫描超过 30 秒限制。")
+                        error_code="github_timeout", error_message="GitHub 解析与归档下载合计超过 30 秒限制。")
         except HTTPException as error:
             detail = error.detail if isinstance(error.detail, dict) else {}
             self.update(job_id, status="failed", stage="error", progress=100,

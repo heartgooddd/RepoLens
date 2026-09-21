@@ -22,11 +22,11 @@ MAX_LOG = 256 * 1024
 MAX_ARTIFACT = 512 * 1024
 
 
-def result_cache_key(*, snapshot_revision: str, mode: str, provider: str | None, model: str | None,
+def result_cache_key(*, snapshot_id: str, snapshot_revision: str, mode: str, provider: str | None, model: str | None,
                      prompt_version: str | None, language: str, topics: int, scope: str, scenario: str) -> str:
     """Key model/stub output by immutable input plus every output-affecting configuration value."""
     payload = {
-        'snapshot_revision': snapshot_revision, 'mode': mode, 'provider': provider, 'model': model,
+        'snapshot_id': snapshot_id, 'snapshot_revision': snapshot_revision, 'mode': mode, 'provider': provider, 'model': model,
         'prompt_version': prompt_version, 'language': language, 'topics': topics, 'scope': scope,
         'scenario': scenario, 'runner_commit': COMMIT,
     }
@@ -105,7 +105,7 @@ class Runner:
                 fail('model_config_missing', '模型配置缺失，请在本机填写 OpenRouter 密钥。', 409)
         prompt_version = 'folder-responsibility-v1' if config else None
         cache_key = result_cache_key(
-            snapshot_revision=snapshot['revision'], mode=request.mode,
+            snapshot_id=str(request.snapshot_id), snapshot_revision=snapshot['revision'], mode=request.mode,
             provider=config.provider if config else None, model=config.model if config else None,
             prompt_version=prompt_version, language=request.language, topics=request.topics,
             scope=request.scope, scenario=request.scenario,
