@@ -10,3 +10,23 @@
 - 本机 `python -m app.model_check` 实际返回 blocked，missing仅为 OPENROUTER_API_KEY，authentication_verified=false。此处为配置文件创建后的检查时点；后续填写不自动视为鉴权已验证。
 - 本次尚未发送带密钥的模型请求，没有真实生成结果或费用记录。用户填好 Key 后再执行一次 `--smoke`，保存实际回答／模型／token／费用及检查结果。
 - 页面仍为替身模式。OpenRouter 连通性与 PocketFlow 完整真实运行分别验收，M3 仍未完成，不合并 main。
+
+
+## 实际短请求验证通过（2026-09-21 22:16，Asia/Shanghai）
+
+用户保存密钥后执行：
+
+```bash
+# server/ 目录
+.venv/bin/python -m app.model_check
+.venv/bin/python -m app.model_check --smoke
+```
+
+- 本机配置检查返回 ready，api_key_configured=true，configuration_complete=true；没有显示密钥。
+- 显式执行一次真实 OpenRouter 请求，检查器退出码0、status=passed、finish_reason=stop，未重试、未自动换模型。
+- 请求与实际返回模型均为 `deepseek/deepseek-v4-flash`。
+- 测试输入只包含人工编写的 `def add(a, b): return a + b` 短函数，要求中文一句话解释；没有上传项目源码。
+- 实际回答：“定义了一个名为 `add` 的函数，接收两个参数并返回它们的和。”与源码可见行为一致；这仅是一次基础连通性／简单回答检查，不是代码分析质量评测。
+- 输入34 token、输出18 token、合计52 token；API报告费用为 **$0.0000039886**，不是估算，也不代表完整 PocketFlow 任务价格。
+- 原始脱敏报告留在 `var/model-checks/`；筛选后的实际字段保存于 [openrouter-smoke.json](openrouter-smoke.json)。检查时间为 `2026-09-21T14:16:35.887483+00:00`。
+- 现在已确认本次Key与所选模型可调用，之前的缺密钥阻塞已解除。下一步仍需完成真实 PocketFlow 入口、阶段日志、页面结果接入，并验收 utils／中文／最多3个主题任务。本轮没有创建该任务或合并 M3。

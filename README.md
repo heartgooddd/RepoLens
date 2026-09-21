@@ -16,7 +16,7 @@
 
 当前运行窗口明确标注 **“替身验证 · 无模型”**，输出是固定测试内容。本步没有发送真实模型请求，M3 的真实生成验收留到步骤 7。实际截图与验证见 [步骤 6 记录](evidence/m3/step-6-check.md)，配置和任务接口见 [任务服务说明](docs/07-task-runner.md)。
 
-**步骤 7 正在补配置：**已选择 OpenRouter + `deepseek/deepseek-v4-flash`，本机 `server/.env` 已准备，只需填写 `OPENROUTER_API_KEY`。已增加一次短请求检查器，见 [OpenRouter 配置与简单验证](docs/08-openrouter-setup.md)；9项无网络测试通过，密钥鉴权与真实请求尚未验证。页面仍为替身模式，真实 PocketFlow 调用接入和完整验收待完成，M3 未合并。历史预检见 [验收记录](evidence/m3/acceptance.md)。
+**OpenRouter 短请求已通过（2026-09-21）：**本机密钥已读取，实际调用 `deepseek/deepseek-v4-flash` 成功；输入34／输出18 token，API报告费用 $0.0000039886，无重试。命令与实际结果见 [OpenRouter 验证记录](evidence/m3/openrouter-precheck.md)，配置说明见 [本机设置](docs/08-openrouter-setup.md)。页面仍为替身模式，真实 PocketFlow 调用接入和完整验收待完成，M3 未合并。
 
 ## 启动后台
 

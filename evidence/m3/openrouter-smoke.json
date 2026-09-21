@@ -1,0 +1,16 @@
+{
+  "status": "passed",
+  "requested_model": "deepseek/deepseek-v4-flash",
+  "returned_model": "deepseek/deepseek-v4-flash",
+  "finish_reason": "stop",
+  "response": "定义了一个名为 `add` 的函数，接收两个参数并返回它们的和。",
+  "usage": {
+    "prompt_tokens": 34,
+    "completion_tokens": 18,
+    "total_tokens": 52,
+    "cost": 3.9886e-06
+  },
+  "retry_performed": false,
+  "synthetic_input": true,
+  "checked_at": "2026-09-21T14:16:35.887483+00:00"
+}

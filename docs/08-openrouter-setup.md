@@ -1,6 +1,6 @@
 # OpenRouter 配置与一次小测试
 
-2026-09-21。本轮选择 OpenRouter + `deepseek/deepseek-v4-flash`，先检查连通性；此测试不等于 PocketFlow 步骤 7 真实流程验收。
+2026-09-21。本轮选择 OpenRouter + `deepseek/deepseek-v4-flash`，22:16已通过一次短请求，见 [实际验证](../evidence/m3/openrouter-precheck.md)；此测试不等于 PocketFlow 步骤 7 真实流程验收。
 
 ## 1. 只需填写本机密钥
 
