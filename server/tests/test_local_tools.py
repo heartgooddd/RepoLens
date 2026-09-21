@@ -129,3 +129,12 @@ def test_real_mode_requires_explicit_opt_in():
     assert hasattr(local, 'service_environment')
     assert local.service_environment({}, '/data')['REPOLENS_ENABLE_REAL_RUN'] == '0'
     assert local.service_environment({'REPOLENS_ENABLE_REAL_RUN':'1'}, '/data')['REPOLENS_ENABLE_REAL_RUN'] == '1'
+
+
+@pytest.mark.parametrize('version', ['3.12', '3.13'])
+def test_existing_environment_wrong_python_is_refused(monkeypatch, version):
+    installer = module('install')
+    monkeypatch.setattr(installer, 'run', lambda *args, **kwargs: version)
+    assert hasattr(installer, 'require_python314'), 'Existing venv needs its own version check'
+    with pytest.raises(installer.DeliveryError, match='3.14'):
+        installer.require_python314(Path('/fixture/.venv/bin/python'))

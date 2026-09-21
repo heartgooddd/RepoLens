@@ -79,6 +79,7 @@ REPOLENS_DATA_DIR='/Users/你的用户名/RepoLens恢复数据' ./Start.command
 | 提示或现象 | 处理 |
 |---|---|
 | 缺Python/Node/npm/Git或版本不匹配 | 完成第1节系统工具安装；注意Finder PATH与终端可能不同 |
+| 现有.venv不是Python3.14 | 停止服务，将报错对应的.venv另存或重命名，再运行Install；不要删除var或源码目录 |
 | 下载/安装超时 | 检查GitHub、PyPI、npm网络；重试Install，不改为随机Commit或未锁定依赖 |
 | 已有上游来源/Commit不匹配或有修改 | 先另存个人修改，再手动移走该目录，重跑安装；安装器不会替你丢弃修改 |
 | 未安装、源码/锁文件/目录变化 | 停止后重跑Install.command；不要复制他人的venv |

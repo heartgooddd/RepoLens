@@ -49,12 +49,14 @@ macOS26.6.2（25G83）、Apple Silicon arm64；Python3.14.6、Node22.23.0/npm10.
 | 完整后端 | `server/.venv/bin/python -m pytest -q server/tests --tb=short`：135 passed；2条既有Starlette测试依赖弃用警告 |
 | 构建 | `cd web && npm run build`：成功，192 modules |
 | 完整浏览器回归 | `cd web && npm run test:e2e`：26 passed，桌面/窄屏各13项；仅既有NO_COLOR/FORCE_COLOR提示 |
-| 本地工具收尾 | `server/.venv/bin/python -m pytest -q server/tests/test_local_tools.py`：17 passed；含Homebrew Node22路径补充 |
+| 本地工具收尾 | `server/.venv/bin/python -m pytest -q server/tests/test_local_tools.py`：19 passed；含Homebrew Node22路径及现有venv错误Python版本拒绝 |
 | 数据/本地工具定向回归 | test_delivery.py + test_local_tools.py：38 passed |
 | 安装与恢复交付页面 | 全新安装1 passed，恢复模式1 passed；各自skip另一种模式，无模型请求 |
 | 数据模块规格/质量审查 | 两个独立审查均无阻断发现；21个数据维护用例覆盖主要边界 |
 
 启动器审查发现并修正：默认真实开关应保留关闭、TIME_WAIT导致即时重启失败、畸形JSON/非ASCII停止token导致未鉴权退出。均先观察回归失败，再修正为绿；实际TCP控制连接也验证拒绝。首次安装实际发现Path.open不支持opener、Finder选错Node版本，已修正并增加回归。
+
+最终规格复核无阻断发现；最终质量复核指出现有venv也必须核验实际Python版本，已在两个环境的pip安装前加入3.14/必要模块检查，错误时保留原环境并提示另存后重建。两个错误版本回归先失败后通过，当前目录再次Install.command成功，复核关闭该项。以上审查不替代真实用户反馈。
 
 ## 截图
 

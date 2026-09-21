@@ -12,6 +12,15 @@ from delivery_common import ROOT, DeliveryError, fingerprint, run, write_private
 SOURCE = json.loads((ROOT / 'server/pocketflow/source.json').read_text())
 
 
+def require_python314(python):
+    try:
+        valid = run([python, '-c', 'import sys,ssl,sqlite3,venv; print(".".join(map(str,sys.version_info[:2])))']) == '3.14'
+    except DeliveryError:
+        valid = False
+    if not valid:
+        raise DeliveryError(f'{python} 不是可用的 Python 3.14。若是现有.venv，请先另存/重命名该环境目录，再安装；不会自动删除。')
+
+
 def prerequisites():
     python = shutil.which('python3.14')
     if not python:
@@ -19,8 +28,7 @@ def prerequisites():
     for tool in ('git', 'node', 'npm'):
         if not shutil.which(tool):
             raise DeliveryError(f'缺少 {tool}。请按 docs/05-local-setup-and-trial.md 安装 Git 和 Node.js 22，再重试。')
-    if run([python, '-c', 'import sys,ssl,sqlite3,venv; print(".".join(map(str,sys.version_info[:2])))']) != '3.14':
-        raise DeliveryError('需要 Python 3.14，当前解释器版本不匹配。')
+    require_python314(python)
     version = tuple(int(part) for part in run(['node', '--version']).lstrip('v').split('.')[:2])
     if version[0] != 22 or version < (22, 12):
         raise DeliveryError('本地交付已验收 Node.js 22.12+（22.x）；请安装该版本后重试。')
@@ -80,6 +88,7 @@ def install():
             if not environment.exists():
                 run([python, '-m', 'venv', environment])
             interpreter = environment / 'bin/python'
+            require_python314(interpreter)
             run([interpreter, '-m', 'pip', 'install', '--disable-pip-version-check', '-r', ROOT / name / 'requirements.lock'], timeout=1200)
             run([interpreter, '-m', 'pip', 'check'])
         print('3/4 安装前端锁定依赖并构建页面', flush=True)
