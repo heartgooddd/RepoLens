@@ -1,5 +1,6 @@
 """Local snapshot APIs and registered isolated actions."""
 
+import os
 import sqlite3
 from contextlib import asynccontextmanager
 from typing import Annotated
@@ -9,9 +10,11 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 
-from .config import Settings
+from .config import ROOT, Settings
 from .db import connect, migrate
+from .data_lease import DataLease
 from .models import Health, ProjectDetail, ProjectList
 from .repository import get_project, list_projects
 from .importer import ImportRequest, ImportResult, import_project
@@ -31,17 +34,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(_: FastAPI):
-        settings.prepare()
-        migrate(settings.database)
-        runner.start()
-        github_importer.start()
-        try:
-            yield
-        finally:
-            await github_importer.close()
-            await runner.close()
+        with DataLease(settings.data_dir):
+            settings.prepare()
+            migrate(settings.database)
+            try:
+                runner.start()
+                github_importer.start()
+                yield
+            finally:
+                try:
+                    await github_importer.close()
+                finally:
+                    await runner.close()
 
-    app = FastAPI(title="RepoLens API", version="0.5.0", lifespan=lifespan)
+    app = FastAPI(title="RepoLens API", version="0.6.0", lifespan=lifespan)
     app.state.runner = runner
     app.state.github_importer = github_importer
     app.include_router(routes(settings, runner))
@@ -102,6 +108,13 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         if result is None:
             raise HTTPException(status_code=404, detail="Project not found")
         return result
+
+    if os.environ.get('REPOLENS_SERVE_WEB') == '1':
+        @app.api_route('/api/{path:path}', methods=['GET', 'HEAD', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'], include_in_schema=False)
+        def missing_api(path: str):
+            return JSONResponse(status_code=404, content={'detail': 'Not Found'})
+
+        app.mount('/', StaticFiles(directory=ROOT / 'web' / 'dist', html=True), name='web')
 
     return app
 
