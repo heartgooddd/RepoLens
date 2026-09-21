@@ -23,7 +23,7 @@ def routes(settings: Settings, runner: Runner) -> APIRouter:
 
     @api.get('/api/runner')
     def configuration():
-        return {'mode': 'stub', 'real_enabled': False, 'message': '步骤 6 使用替身进程，真实模型运行留到步骤 7。', 'timeout_seconds': runner.timeout}
+        return runner.configuration()
 
     @api.post('/api/runs', response_model=Run, status_code=201)
     async def create(body: RunRequest):

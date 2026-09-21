@@ -19,5 +19,5 @@ def watch_parent():
 
 
 threading.Thread(target=watch_parent, daemon=True).start()
-process = subprocess.Popen(command, stdin=subprocess.DEVNULL)
+process = subprocess.Popen(command, stdin=sys.stdin)
 raise SystemExit(process.wait())

@@ -54,4 +54,6 @@ OPENROUTER_API_KEY=
 
 ## 4. 与页面运行的关系
 
-新增 `app/model_config.py` 与 `app/model_check.py` 负责显式配置读取和最小请求验证；没有切换后台任务模式，页面仍显示替身模式。连通性测试通过后，还需将该配置接入受控 PocketFlow 进程与状态／结果页面，再按照步骤 7 做一次 utils／中文／最多3主题的真实流程验收。不要把检查器通过写成 M3 已完成。
+`app/model_config.py` 与 `app/model_check.py` 负责配置检查和独立短请求；真实任务现在通过相同配置读取器调用受控 PocketFlow 入口。启动后台时显式设置 `REPOLENS_ENABLE_REAL_RUN=1`，然后在页面选择“真实 PocketFlow”并点击“启动真实任务”。默认仍为替身，保存 Key 不会自行运行。
+
+页面显示所选模型和密钥是否已配置；实际请求次数、返回模型、用量和费用写入运行记录。仅分析固定 PocketFlow 快照的 utils、中文、最多3主题，每次失败不自动重试；具体上限见 [07 任务说明](07-task-runner.md)。缺少 Key 时禁用真实启动；修改本机文件后点击“重新读取”更新配置状态。完整任务验收见 [M3 实际记录](../evidence/m3/acceptance.md)，短请求通过本身不代表完整任务通过。

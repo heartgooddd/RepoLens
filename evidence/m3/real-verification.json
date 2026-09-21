@@ -1,0 +1,168 @@
+{
+  "run_id": "1acf3d68-c857-4acf-89d9-bee17f98c512",
+  "snapshot_id": "5a4a6d2b-049f-440d-8544-8c49fec62e8d",
+  "status": "succeeded",
+  "mode": "pocketflow",
+  "scope": "utils",
+  "language": "zh",
+  "topics": 3,
+  "created_at": "2026-09-21T14:26:15.528388Z",
+  "started_at": "2026-09-21T14:26:15.529564Z",
+  "ended_at": "2026-09-21T14:28:57.236355Z",
+  "model": "deepseek/deepseek-v4-flash",
+  "upstream_commit": "05b24cbbb0fe409c5e23c9791f0342f07524ffdc",
+  "prompt_version": "folder-responsibility-v1",
+  "input_files_verified": 4,
+  "artifacts_verified": [
+    {
+      "id": "ead0eda4-3787-4a41-90cf-a43a13f25787",
+      "run_id": "1acf3d68-c857-4acf-89d9-bee17f98c512",
+      "path": "project/01_本地文件爬取器_.md",
+      "size_bytes": 7409,
+      "sha256": "2450e0936c997bf8891e62ac474ac85c252b04eb4393c78c50990254334e9ea2"
+    },
+    {
+      "id": "c71ad19c-e34e-470d-a53d-553df16440ca",
+      "run_id": "1acf3d68-c857-4acf-89d9-bee17f98c512",
+      "path": "project/02_远程仓库文件爬取器_.md",
+      "size_bytes": 9273,
+      "sha256": "b53ffb9630f8340ac3e941003b090f2133a230eeffd89a652acb0bfd3b89115b"
+    },
+    {
+      "id": "36fdd09b-0704-47ec-a4c4-86717971a27a",
+      "run_id": "1acf3d68-c857-4acf-89d9-bee17f98c512",
+      "path": "project/03_llm调用器_.md",
+      "size_bytes": 10779,
+      "sha256": "8c5d570520106edc839a6660f9695b932b70370ec60789ce8c0a517b3d7a33b5"
+    },
+    {
+      "id": "f7f5c670-3a88-4db0-9948-b10ffe55a1d2",
+      "run_id": "1acf3d68-c857-4acf-89d9-bee17f98c512",
+      "path": "project/folder-claims.json",
+      "size_bytes": 2283,
+      "sha256": "3c2570a6946e757af7e7afc141a7d9b17c81a5219a8c0be3c24b1ed5df2f6a7c"
+    },
+    {
+      "id": "531e189b-ee4e-48fc-a565-4e4f21f3ae68",
+      "run_id": "1acf3d68-c857-4acf-89d9-bee17f98c512",
+      "path": "project/index.md",
+      "size_bytes": 1121,
+      "sha256": "2aec946de7e710de670f84dfb6964a14ece9bff8ba6c96cdc8dbf5bfb406b1c6"
+    },
+    {
+      "id": "36df94c4-da18-4418-ac08-608e09437283",
+      "run_id": "1acf3d68-c857-4acf-89d9-bee17f98c512",
+      "path": "project/model-usage.json",
+      "size_bytes": 2945,
+      "sha256": "5e011c6d4a668a9a8847ab231289d57be5e1e9d3ba7c1e3494904d38f7bdbce5"
+    },
+    {
+      "id": "3d421ba1-00be-41ca-a4de-7b749ec074f6",
+      "run_id": "1acf3d68-c857-4acf-89d9-bee17f98c512",
+      "path": "project/verified-claims.json",
+      "size_bytes": 2619,
+      "sha256": "ccbacf81d6a7095f8f4531a2a0908c92d6f5d41d2a25628e664ec3e243d39b62"
+    }
+  ],
+  "database_api_files_equal": true,
+  "usage_equal": true,
+  "model_usage": {
+    "provider": "OPENROUTER",
+    "requested_model": "deepseek/deepseek-v4-flash",
+    "calls": [
+      {
+        "stage": "IdentifyAbstractions",
+        "status": "succeeded",
+        "prompt_sha256": "58e01ebd5411c6cf2ab363f0e755b31b8aa28befe899c21413b1bb1e56fa1188",
+        "http_status": 200,
+        "prompt_tokens": 7007,
+        "completion_tokens": 349,
+        "total_tokens": 7356,
+        "cost": 0.0004390309,
+        "returned_model": "deepseek/deepseek-v4-flash",
+        "finish_reason": "stop"
+      },
+      {
+        "stage": "AnalyzeRelationships",
+        "status": "succeeded",
+        "prompt_sha256": "6150ab1868afd9220293f5a8119f321cff4593a83478e84b221aaadf99256d15",
+        "http_status": 200,
+        "prompt_tokens": 7492,
+        "completion_tokens": 238,
+        "total_tokens": 7730,
+        "cost": 0.00045401664,
+        "returned_model": "deepseek/deepseek-v4-flash",
+        "finish_reason": "stop"
+      },
+      {
+        "stage": "OrderChapters",
+        "status": "succeeded",
+        "prompt_sha256": "0671910fa222982348ff80f48ee63b1ccf1428411e8060df1045650d111c86b2",
+        "http_status": 200,
+        "prompt_tokens": 456,
+        "completion_tokens": 38,
+        "total_tokens": 494,
+        "cost": 3.031336e-05,
+        "returned_model": "deepseek/deepseek-v4-flash",
+        "finish_reason": "stop"
+      },
+      {
+        "stage": "WriteChapters",
+        "status": "succeeded",
+        "prompt_sha256": "6df0ce02135820df017572976505179d7beb5e64b31d61388f7044e68d6b9f4a",
+        "http_status": 200,
+        "prompt_tokens": 2249,
+        "completion_tokens": 1713,
+        "total_tokens": 3962,
+        "cost": 0.0003233615,
+        "returned_model": "deepseek/deepseek-v4-flash",
+        "finish_reason": "stop"
+      },
+      {
+        "stage": "WriteChapters",
+        "status": "succeeded",
+        "prompt_sha256": "90a872cf9371e041c93241104f37b5c58015f55c5e6c13be4e1719393c898b0e",
+        "http_status": 200,
+        "prompt_tokens": 6493,
+        "completion_tokens": 2221,
+        "total_tokens": 8714,
+        "cost": 0.0006230763,
+        "returned_model": "deepseek/deepseek-v4-flash",
+        "finish_reason": "stop"
+      },
+      {
+        "stage": "WriteChapters",
+        "status": "succeeded",
+        "prompt_sha256": "98fc950de09d6a4fe1d0bd0471650580996c329c3a1b54bb09f13a9c5f065354",
+        "http_status": 200,
+        "prompt_tokens": 6604,
+        "completion_tokens": 2675,
+        "total_tokens": 9279,
+        "cost": 0.00067946536,
+        "returned_model": "deepseek/deepseek-v4-flash",
+        "finish_reason": "stop"
+      },
+      {
+        "stage": "FolderResponsibilities",
+        "status": "succeeded",
+        "prompt_sha256": "de4b15fc90d828a7d6a607b273fe87d1a42ec2fb64ba1ea6f00f2b455bf585ba",
+        "http_status": 200,
+        "prompt_tokens": 15016,
+        "completion_tokens": 621,
+        "total_tokens": 15637,
+        "cost": 0.00092638084,
+        "returned_model": "deepseek/deepseek-v4-flash",
+        "finish_reason": "stop"
+      }
+    ],
+    "call_count": 7,
+    "cost_usd": 0.0034756449,
+    "retry_performed": false
+  },
+  "claim_types": [
+    "inference",
+    "inference",
+    "inference"
+  ],
+  "real_run_count": 1
+}

@@ -38,7 +38,10 @@ def verify_claims(settings: Settings, snapshot_id: str, data: dict) -> list[dict
             except (KeyError, TypeError, OSError, ValueError):
                 pass
             valid = valid and matched
-            checked.append({'file_path': ref.get('file_path') if isinstance(ref, dict) else None, 'matched': matched})
+            checked.append({'file_path': ref.get('file_path') if isinstance(ref, dict) else None, 'matched': matched,
+                            'line_start': ref.get('line_start') if isinstance(ref, dict) and type(ref.get('line_start')) is int else None,
+                            'line_end': ref.get('line_end') if isinstance(ref, dict) and type(ref.get('line_end')) is int else None,
+                            'quote': str(ref.get('quote', ''))[:4000] if isinstance(ref, dict) else ''})
         result.append({'folder_path': str(claim.get('folder_path', ''))[:700],
                        'description': str(claim.get('description', ''))[:2000],
                        'claim_type': 'inference' if valid else 'unverified',

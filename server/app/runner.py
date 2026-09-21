@@ -13,7 +13,8 @@ from .claims import verify_claims
 from .config import Settings
 from .db import connect
 from .import_policy import fail, validate_path, MAX_FILE
-from .pocketflow_adapter import COMMIT, isolated_environment, stub_command
+from .pocketflow_adapter import COMMIT, isolated_environment, stub_command, worker_command
+from .model_config import load_model_config
 from .run_models import ACTIVE, STAGES, RunRequest
 from .run_store import get_run, now, update_run
 
@@ -29,6 +30,19 @@ class Runner:
         self.processes = {}
         self.lock = None
         self.closing = False
+        self.model_loader = load_model_config
+        self.real_command = worker_command
+        self.configs = {}
+
+    def configuration(self):
+        try:
+            status = self.model_loader().status()
+        except (OSError, ValueError):
+            status = {'configuration_complete': False, 'api_key_configured': False, 'missing': ['invalid_local_configuration']}
+        return {'mode': 'selectable', 'real_enabled': self.settings.real_enabled,
+                'real_ready': self.settings.real_enabled and status['configuration_complete'],
+                'model': status, 'timeout_seconds': self.timeout, 'real_timeout_seconds': 900,
+                'real_scope': 'utils', 'real_language': 'zh', 'real_max_topics': 3}
 
     def start(self):
         self.lock = (self.settings.data_dir / 'runs' / '.runner.lock').open('a')
@@ -59,7 +73,7 @@ class Runner:
         with connect(self.settings.database) as db:
             if db.execute("SELECT id FROM runs WHERE status IN ('queued','running','cancelling') LIMIT 1").fetchone():
                 fail('runner_busy', '当前已有任务，请完成或取消后再创建。', 409)
-            snapshot = db.execute('SELECT id FROM snapshots WHERE id = ?', (str(request.snapshot_id),)).fetchone()
+            snapshot = db.execute('SELECT * FROM snapshots WHERE id = ?', (str(request.snapshot_id),)).fetchone()
             scope = db.execute('SELECT path FROM folder_cards WHERE snapshot_id = ? AND path = ?', (str(request.snapshot_id), request.scope)).fetchone()
         if not snapshot:
             fail('snapshot_not_found', '项目快照不存在。', 404)
@@ -67,14 +81,29 @@ class Runner:
             validate_path(request.scope)
         if not scope:
             fail('invalid_scope', '分析范围必须是此快照已登记的目录。')
+        config = None
+        if request.mode == 'pocketflow':
+            if not self.settings.real_enabled:
+                fail('real_run_disabled', '后台未启用真实运行。', 409)
+            if snapshot['commit_sha'] != COMMIT or request.scope != 'utils' or request.language != 'zh' or request.topics > 3 or request.scenario != 'success':
+                fail('real_scope_restricted', '当前真实运行仅支持固定 PocketFlow 快照的 utils、中文、最多3主题。')
+            try:
+                config = self.model_loader()
+            except (OSError, ValueError):
+                fail('model_config_invalid', '本机模型配置不正确，请检查配置文件。', 409)
+            if config.missing():
+                fail('model_config_missing', '模型配置缺失，请在本机填写 OpenRouter 密钥。', 409)
         run_id = str(uuid4())
         directory = self.settings.data_dir / 'runs' / run_id
         directory.mkdir()
-        (directory / 'run.log').write_text('替身任务已创建；不会发送模型请求。\n', encoding='utf-8')
+        (directory / 'run.log').write_text('真实 PocketFlow 任务已创建；失败不自动重试。\n' if config else '替身任务已创建；不会发送模型请求。\n', encoding='utf-8')
         with connect(self.settings.database) as db:
-            db.execute('''INSERT INTO runs(id,snapshot_id,mode,status,stage,language,topics,scope,scenario,created_at,upstream_commit)
-                          VALUES (?,?,'stub','queued','queued',?,?,?,?,?,?)''',
-                       (run_id, str(request.snapshot_id), request.language, request.topics, request.scope, request.scenario, now(), COMMIT))
+            db.execute('''INSERT INTO runs(id,snapshot_id,mode,status,stage,language,topics,scope,scenario,created_at,upstream_commit,model_provider,model_name,prompt_version)
+                          VALUES (?,?,?,'queued','queued',?,?,?,?,?,?,?,?,?)''',
+                       (run_id, str(request.snapshot_id), request.mode, request.language, request.topics, request.scope, request.scenario, now(), COMMIT,
+                        config.provider if config else None, config.model if config else None, 'folder-responsibility-v1' if config else None))
+        if config:
+            self.configs[run_id] = config
         task = asyncio.create_task(self.execute(run_id))
         self.tasks[run_id] = task
         task.add_done_callback(lambda _: self.tasks.pop(run_id, None))
@@ -134,6 +163,7 @@ class Runner:
     async def execute(self, run_id):
         directory = self.settings.data_dir / 'runs' / run_id
         process = None
+        secret = b''
         try:
             run = get_run(self.settings.database, run_id)
             if run.status != 'queued':
@@ -142,17 +172,27 @@ class Runner:
             input_dir = await asyncio.to_thread(self.prepare_input, run)
             if get_run(self.settings.database, run_id).status != 'running':
                 return
-            command = stub_command(input_dir, directory / 'output', run.language, run.topics, run.scenario)
+            config = self.configs.get(run_id)
+            command = (self.real_command(input_dir, directory / 'output', run.language, run.topics) if config
+                       else stub_command(input_dir, directory / 'output', run.language, run.topics, run.scenario))
+            if config:
+                secret = config.api_key.encode()
             process = await asyncio.create_subprocess_exec(
                 sys.executable, '-B', '-u', str(Path(__file__).with_name('run_supervisor.py')), str(os.getpid()), json.dumps(command),
-                cwd=directory, env=isolated_environment(directory), stdin=asyncio.subprocess.DEVNULL,
+                cwd=directory, env=isolated_environment(directory), stdin=asyncio.subprocess.PIPE if config else asyncio.subprocess.DEVNULL,
                 stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT, start_new_session=True,
             )
             self.processes[run_id] = process
+            if config:
+                metadata = {'model': config.model, 'api_key': config.api_key, 'snapshot_id': run.snapshot_id,
+                            'scope': run.scope, 'topics': run.topics, 'commit': COMMIT}
+                process.stdin.write(json.dumps(metadata).encode())
+                await process.stdin.drain()
+                process.stdin.close()
             if get_run(self.settings.database, run_id).status != 'running':
                 await self.terminate(run_id)
                 return
-            async with asyncio.timeout(self.timeout):
+            async with asyncio.timeout(900 if config else self.timeout):
                 with (directory / 'run.log').open('ab') as log:
                     size = log.tell()
                     pending = b''
@@ -160,19 +200,23 @@ class Runner:
                         size += len(chunk)
                         if size > MAX_LOG:
                             raise ValueError('日志超过上限。')
-                        log.write(chunk); log.flush()
                         pending += chunk
                         while b'\n' in pending:
                             line, pending = pending.split(b'\n', 1)
+                            if secret:
+                                line = line.replace(secret, b'[REDACTED]')
+                            log.write(line + b'\n'); log.flush()
                             marker = line.decode('utf-8', errors='replace')
                             if marker.startswith('REPOLENS_STAGE:') and marker.split(':', 1)[1] in STAGES:
                                 update_run(self.settings.database, run_id, stage=marker.split(':', 1)[1])
+                    if pending:
+                        log.write(pending.replace(secret, b'[REDACTED]') if secret else pending)
                     code = await process.wait()
             current = get_run(self.settings.database, run_id)
             if current.status != 'running':
                 return
             if code != 0:
-                update_run(self.settings.database, run_id, status='failed', exit_code=code, ended_at=now(), error=f'替身进程退出码 {code}，未登记成功产物。')
+                update_run(self.settings.database, run_id, status='failed', exit_code=code, ended_at=now(), error=f'进程退出码 {code}，未登记成功产物。请查看日志；不会自动重试。')
                 return
             artifacts = self.collect_artifacts(run, directory)
             # No await between status check and terminal commit: cancellation cannot overwrite success or vice versa.
@@ -193,6 +237,17 @@ class Runner:
                            error='任务失败：超时、快照校验或产物检查未通过。请检查日志并重新导入／重试。')
         finally:
             self.processes.pop(run_id, None)
+            self.configs.pop(run_id, None)
+            usage = directory / 'model-data' / 'usage.json'
+            if usage.is_file() and usage.stat().st_size <= MAX_ARTIFACT:
+                raw = usage.read_text()
+                if secret:
+                    raw = raw.replace(secret.decode(), '[REDACTED]')
+                try:
+                    json.loads(raw)
+                    update_run(self.settings.database, run_id, model_usage=raw)
+                except (ValueError, OSError):
+                    pass
 
     def collect_artifacts(self, run, directory):
         root = directory / 'output'

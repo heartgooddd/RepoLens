@@ -1,6 +1,6 @@
 # PocketFlow 固定入口与独立依赖环境
 
-核对日期：2026-09-21。本目录只放 RepoLens 的安装说明和锁文件；上游源码继续保留在 `upstream/pocketflow-codebase-knowledge/`，没有修改或复制进产品代码。
+核对日期：2026-09-21。本目录放 RepoLens 的安装说明、锁文件和受控适配入口 worker.py；上游源码继续保留在 `upstream/pocketflow-codebase-knowledge/`，没有修改或复制进产品代码。
 
 ## 来源核对
 
@@ -45,11 +45,12 @@ git -C upstream/pocketflow-codebase-knowledge rev-parse HEAD
 git -C upstream/pocketflow-codebase-knowledge status --porcelain
 ```
 
-## 步骤 6 的执行边界
+## 步骤 7 的执行边界
 
-- 页面只调用 RepoLens 固定替身入口 `app/stub_worker.py`，使用 **server/.venv**，不加载模型 SDK。替身会实际创建子进程、读取校验后的输入副本、输出固定 Markdown。
-- `app/pocketflow_adapter.py` 已准备固定 `main.py` 参数数组，核对 Commit 和被跟踪的 Python／依赖／许可证文件。上游独立环境仅做了依赖校验和 `main.py --help` 入口加载，**没有真实生成请求**。
-- 没有 `REPOLENS_RUNNER_MODE` 或 `REPOLENS_MODEL` 配置开关；设置密钥不会启用真实执行。步骤 7 需显式接通真实适配器、阶段解析和模型配置，再做一次授权的小范围验收。
-- 上游 `call_llm.py` 支持 Gemini 配置与通用服务商环境变量，但服务商、实际模型和可用密钥本步未确定。不要照搬上游旧的默认预览模型名作为可用性保证。
-- 上游会记录请求／响应、使用缓存并自动加载 `.env`。适配器预备 `--no-cache`；进程在独立运行目录工作，禁用 dotenv 自动加载，日志目录指向运行目录。当前替身环境不继承任何模型密钥、云凭据、代理或 PYTHONPATH。真实模式接入时必须只传入已选服务商需要的变量并核对日志内容。
-- 虚拟环境隔离的是 Python 依赖，不是操作系统沙箱。当前只运行固定、核查过的入口；输入快照当作文本读取，不执行上传项目脚本。Windows 进程控制未适配。
+- 替身模式仍调用 `app/stub_worker.py`，使用后台环境，无模型请求。
+- 真实模式先核对固定 Commit 和被跟踪的 Python／依赖／许可证文件，通过隔离环境运行 `worker.py`，再以 `runpy` 调用原始 `main.py`。不修改上游源码。
+- 适配器覆盖节点的模型函数，使用已有 HTTPX 0.28.1 调用 OpenRouter；禁用上游重试、缓存、原始模型日志函数和 dotenv 自动加载。节点执行前打印阶段，章节完成后调用 `server/app/prompts/folder-responsibility-v1.md`。
+- 修正上游小主题数提示“top 5-3”，校验返回主题不超过请求值。真实参数当前固定 utils、中文、最多3主题。
+- `REPOLENS_ENABLE_REAL_RUN=1` 开启后台真实入口；还须页面明确选择并点击启动。密钥从 `server/.env` 读取，经 stdin 传子进程，不放 argv 或运行文件；原始响应与用量保存在被忽略的 `var/runs/`。
+- 每次模型请求只尝试一次，最多7次调用，失败不会自动重跑。上限和 API 见 [任务说明](../../docs/07-task-runner.md)。实际证据见 [M3 验收](../../evidence/m3/acceptance.md)。
+- 虚拟环境隔离的是依赖，不是操作系统沙箱；输入快照只作文本读取，不执行上传脚本。当前仅本机、单进程；Windows 未适配。

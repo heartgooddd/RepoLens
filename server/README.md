@@ -1,6 +1,6 @@
 # RepoLens 后台：真实仓库地图与 M3 任务服务
 
-已完成步骤 4–5：SQLite 保存、受限目录导入、静态扫描和源码读取。首次启动不自动插入项目；本机验收已导入一份 PocketFlow。步骤 6 已增加持久化任务、子进程生命周期、日志和产物；当前仅替身模式，模型调用留到步骤 7。演示工作台保持独立。
+已完成步骤 4–5：SQLite 保存、受限目录导入、静态扫描和源码读取。首次启动不自动插入项目；本机验收已导入一份 PocketFlow。步骤 6 已增加持久化任务、子进程生命周期、日志和产物；步骤 7 接入受控 OpenRouter 真运行；默认仍为无模型替身，显式开启后可选择真实模式。演示工作台保持独立。
 
 ## 环境与安装
 
@@ -21,7 +21,7 @@ python3.14 -m venv .venv
 
 ```bash
 .venv/bin/python -m app.migrate
-.venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+REPOLENS_ENABLE_REAL_RUN=1 .venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
 - 后台：http://127.0.0.1:8000/api/health
@@ -43,9 +43,9 @@ RepoLens/var/
 └── tests/m2-*/                  自动验证的隔离数据，测试结束自动清理
 ```
 
-每次成功导入建立独立快照目录并写 SQLite。测试在独立目录中导入本地 PocketFlow 或合成源码，不污染默认数据库；`tests/serve_e2e.py` 为浏览器测试在 8001 端口创建临时数据库。任务目录保存已登记快照的输入副本与固定替身输出。
+每次成功导入建立独立快照目录并写 SQLite。测试在独立目录中导入本地 PocketFlow 或合成源码，不污染默认数据库；`tests/serve_e2e.py` 为浏览器测试在 8001 端口创建临时数据库。任务目录保存已登记快照的输入副本、日志、模型用量和对应模式的输出。
 
-可通过环境变量 `REPOLENS_DATA_DIR` 指定**绝对**数据目录，数据库始终命名为 `repolens.sqlite3`；省略则使用根目录 `var/`。`.env.example` 是无密钥模板，程序不会自动加载 `.env`。不要将数据目录指向受 Git 跟踪的源码目录。项目标签是展示名称，不应存密钥或本机绝对路径。
+可通过环境变量 `REPOLENS_DATA_DIR` 指定**绝对**数据目录，数据库始终命名为 `repolens.sqlite3`；省略则使用根目录 `var/`。`.env.example` 是无密钥模板。数据目录和真实开关由进程环境读取；仅模型配置器显式读取 `server/.env` 的四个模型字段，不执行 shell 或通用 dotenv。不要将数据目录指向受 Git 跟踪的源码目录。项目标签是展示名称，不应存密钥或本机绝对路径。
 
 `var/`、`.venv/`、缓存均被根目录 `.gitignore` 排除；迁移代码和依赖锁文件被跟踪。本地 Git 提交不备份数据库或快照。需要备份时先停服务，复制整个 `var/`，恢复时使用与数据库迁移版本匹配的代码。
 
@@ -62,6 +62,8 @@ RepoLens/var/
 | `app/db.py`、`app/migrate.py` | SQLite 连接、迁移执行器及 CLI |
 | `migrations/001_repository_metadata.sql` | 初始表、索引、外键与约束 |
 | `migrations/002_snapshot_files.sql` | 文件清单与名称推断字段，保留旧数据 |
+| `migrations/003_runs.sql`、`004_run_model.sql` | 任务、产物与模型用量元数据 |
+| `app/runner.py`、`bounded_llm.py`、`pocketflow/worker.py` | 固定入口、生命周期、受控模型调用与上游适配 |
 | `tests/` | HTTP 合约、持久化、迁移及真实进程重启验证 |
 
 关系：`projects → snapshots → folder_cards → evidence_refs`。每个项目可有多个快照；每个快照中的目录路径唯一；证据的文件位置依附于同一快照中的文件夹卡，复合外键防止跨快照错配。删除父记录会级联删除子元数据，目前不暴露删除 API。`snapshot_files` 按快照保存文件路径、字节数和 SHA-256。事实、推断和待核实分开存储，不能用推断覆盖原始引用。
@@ -70,7 +72,7 @@ RepoLens/var/
 
 ### 后续迁移规则
 
-1. 后续从 `004_<name>.sql` 开始新增连续版本，版本连续；不要修改已执行的迁移。
+1. 后续从 `005_<name>.sql` 开始新增连续版本，版本连续；不要修改已执行的迁移。
 2. 每条完整 SQL 语句以分号结束，最后一条结束后不添加独立注释；一行不写多条语句。不要在文件中写 `BEGIN/COMMIT/ROLLBACK`、`VACUUM` 等自行控制事务的语句。
 3. 执行器在一个 `BEGIN IMMEDIATE` 事务中核对版本与 SHA-256、执行待应用的 SQL 并写 `schema_migrations`。SQL 或校验失败会回滚并阻止服务启动；不会删库重建。
 4. 修改过的历史迁移、缺失版本、比代码新的数据库会被拒绝；恢复匹配代码或补充正确迁移。当前不提供自动降级。
@@ -87,7 +89,7 @@ RepoLens/var/
 无参数。实际读取迁移表和项目表，成功 `200`：
 
 ```json
-{"status":"ok","database":"ok","schema_version":3}
+{"status":"ok","database":"ok","schema_version":4}
 ```
 
 数据库不可用返回 `503 {"detail":"Database unavailable"}`。启动迁移失败时服务不进入就绪状态。此接口检查元数据库可读，不代表源码文件存在或模型可运行。
@@ -196,26 +198,32 @@ curl 'http://127.0.0.1:8000/api/projects?limit=20&offset=0'
 
 纯空目录通常不会让浏览器原生目录选择器返回 FileList，因此界面提供明确说明；收到空列表／过滤后为空时显示错误。非法路径由 API 再校验，失败时不创建项目。源码变化或丢失时要求重新导入，不将旧元数据冒充仍然存在的文件。
 
-浏览器目录选择规则参考 [MDN webkitdirectory](https://developer.mozilla.org/en-US/docs/Web/API/HTMLInputElement/webkitdirectory)。当前未提供完整调用图、模型语义职责总结、真实模型运行、远程仓库导入或公开部署。
+浏览器目录选择规则参考 [MDN webkitdirectory](https://developer.mozilla.org/en-US/docs/Web/API/HTMLInputElement/webkitdirectory)。当前未提供完整调用图、远程仓库导入或公开部署；M3提供受限真实模型运行与带引用的职责推断。
 
 
-## 任务与产物 API（步骤 6）
+## 任务与产物 API（步骤 6–7）
 
-完整字段、状态、错误码、目录、限制和配置见 [M3 任务服务说明](../docs/07-task-runner.md)。`GET /api/runner` 返回 `stub`、`real_enabled=false`；本步不需要模型密钥。
+完整字段、状态、错误码、目录、限制和配置见 [M3 任务服务说明](../docs/07-task-runner.md)。`GET /api/runner` 返回模式、真实开关、无密钥配置状态与运行限制；真实请求需要本机模型配置。
 
 - `app/runner.py`：单进程／单活动任务，输入哈希核对、阶段、超时、取消、产物登记。
 - `app/run_supervisor.py`：父后台进程丢失时停止任务进程组；POSIX 实现，Windows 未适配。
 - `app/run_api.py`、`run_models.py`、`run_store.py`：任务创建／历史／状态／日志／取消／产物合约与存储。
-- `app/pocketflow_adapter.py`：固定入口和参数数组，来源核对、环境筛选；`stub_worker.py` 当前被实际选择。
-- `app/claims.py`、`app/prompts/folder-responsibility-v1.md`：版本管理的职责提示词与引用校验；本步提示词未调用模型。
+- `app/pocketflow_adapter.py`：固定入口和参数数组，来源核对、环境筛选；按请求模式选择 `stub_worker.py` 或 `pocketflow/worker.py`。
+- `app/claims.py`、`app/prompts/folder-responsibility-v1.md`：版本管理的职责提示词与引用校验；真实任务最后调用此提示词，并校验返回引用。
 - `migrations/003_runs.sql`：任务、产物表及索引；重复迁移保留记录。
 - `pocketflow/requirements.lock`：与 FastAPI 分开的 PocketFlow 环境依赖；见 [安装与来源](pocketflow/README.md)。
 
-运行后台时只使用一个 worker；同一数据目录重复拥有者会被锁拒绝。重启不自动继续未完成任务，而标为 interrupted。44 项后台测试通过，覆盖成功结果重开、失败、取消、超时、强制退出后进程组清理、重启恢复和产物校验；详细证据见 [步骤 6 验证](../evidence/m3/step-6-check.md)。
+运行后台时只使用一个 worker；同一数据目录重复拥有者会被锁拒绝。重启不自动继续未完成任务，而标为 interrupted。步骤6历史验证为44项后台测试；步骤7全量为59项通过，，覆盖成功结果重开、失败、取消、超时、强制退出后进程组清理、重启恢复和产物校验；详细证据见 [步骤 6 验证](../evidence/m3/step-6-check.md)。
 
 
 ## OpenRouter 配置与小测试
 
 已选择 `deepseek/deepseek-v4-flash`。填写被忽略的 `server/.env` 中 `OPENROUTER_API_KEY` 后，在 server/ 执行 `.venv/bin/python -m app.model_check`（仅检查），再执行 `.venv/bin/python -m app.model_check --smoke`（一次短请求）。缺密钥不联网，不打印密钥，不自动重试。
 
-此 CLI 显式读取四个模型配置字段，**不会自动为现有 Uvicorn／任务服务加载 .env 或启用真实运行**。参数、请求限制、价格比较见 [OpenRouter 配置说明](../docs/08-openrouter-setup.md)，当前验证见 [准备记录](../evidence/m3/openrouter-precheck.md)。
+此CLI显式读取四个模型配置字段，运行它不会启用真实模式。后台任务服务使用同一配置读取器；真实选项需启动开关和页面明确选择。参数、请求限制、价格比较见 [OpenRouter 配置说明](../docs/08-openrouter-setup.md)，当前验证见 [准备记录](../evidence/m3/openrouter-precheck.md)。
+
+## 真实任务配置（步骤 7）
+
+完整字段、模式限制、价格／调用上限见 [任务说明](../docs/07-task-runner.md)；本机模型配置见 [OpenRouter 设置](../docs/08-openrouter-setup.md)。默认模式 `stub`，开启 `REPOLENS_ENABLE_REAL_RUN=1` 后允许请求 `mode=pocketflow`，仅固定上游快照 utils、中文、最多3主题。API不接受浏览器传入密钥或模型地址。`GET /api/runner` 返回配置布尔状态，不回传密钥。
+
+迁移当前版本4，模型字段可空，旧替身记录不会被改写为真实任务。模拟模型的固定入口验证位于 `tests/test_real_runs.py`，使用 `pocketflow_fixture_worker.py`、假密钥和 MockTransport，网络请求被拦截；不会消耗模型额度。真实验收证据见 [M3](../evidence/m3/acceptance.md)。

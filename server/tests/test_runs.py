@@ -102,7 +102,7 @@ def test_invalid_snapshot_scope_and_request_limits(settings):
     with TestClient(create_app(settings)) as client:
         snap = snapshot(client)
         assert client.post('/api/runs', json={'snapshot_id': str(uuid4())}).status_code == 404
-        for body in [{'scope': '../escape'}, {'scope': 'missing'}, {'topics': 99}, {'language': 'shell'}, {'command': 'echo hi'}, {'mode': 'pocketflow'}]:
+        for body in [{'scope': '../escape'}, {'scope': 'missing'}, {'topics': 99}, {'language': 'shell'}, {'command': 'echo hi'}, {'mode': 'unknown'}]:
             assert client.post('/api/runs', json={'snapshot_id': snap['id'], **body}).status_code == 422
         assert client.post('/api/runs', json={'snapshot_id': snap['id']}, headers={'Origin': 'https://example.com'}).status_code == 403
         assert client.post('/api/runs', content='x'*17000, headers={'Content-Type':'application/json'}).status_code == 413

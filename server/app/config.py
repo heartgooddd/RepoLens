@@ -10,13 +10,14 @@ ROOT = Path(__file__).resolve().parents[2]
 @dataclass(frozen=True)
 class Settings:
     data_dir: Path
+    real_enabled: bool = False
 
     @classmethod
     def from_env(cls) -> "Settings":
         path = Path(os.environ.get("REPOLENS_DATA_DIR", str(ROOT / "var"))).expanduser()
         if not path.is_absolute():
             raise ValueError("REPOLENS_DATA_DIR must be an absolute path")
-        return cls(path.resolve())
+        return cls(path.resolve(), real_enabled=os.environ.get('REPOLENS_ENABLE_REAL_RUN') == '1')
 
     @property
     def database(self) -> Path:

@@ -83,3 +83,30 @@ test('失败、取消和历史任务保持终态', async ({ page }, info) => {
   await expect(page.getByRole('status')).toContainText('任务失败')
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true)
 })
+
+test('真实模式缺少密钥时禁用启动并支持重新读取配置', async ({ page }, info) => {
+  // Only configuration is simulated; no model request is made by this browser test.
+  let reads = 0, creates = 0
+  page.on('request', request => { if (request.method() === 'POST' && request.url().endsWith('/api/runs')) creates++ })
+  await page.route('**/api/runner', route => {
+    reads++
+    return route.fulfill({ json: { mode: 'selectable', real_enabled: true, real_ready: false,
+      model: { provider: 'OPENROUTER', model: 'offline/config-fixture', api_key_configured: false, configuration_complete: false, missing: ['api_key'] } } })
+  })
+  const response = await page.request.post('/api/projects/import', { data: { source: 'builtin' } })
+  expect(response.status()).toBe(201)
+  const detail = (await response.json()).detail
+  await page.goto(`/#/projects/${detail.project.id}`)
+  await page.getByLabel('运行模式', { exact: true }).selectOption('pocketflow')
+  await expect(page.getByText('真实运行 · 调用模型')).toBeVisible()
+  await expect(page.getByLabel('分析范围', { exact: true })).toHaveValue('utils')
+  await expect(page.getByLabel('分析范围', { exact: true })).toBeDisabled()
+  await expect(page.getByLabel('任务语言')).toBeDisabled()
+  await expect(page.getByLabel('核心主题数').locator('option')).toHaveCount(2)
+  await expect(page.getByRole('button', { name: '启动真实任务' })).toBeDisabled()
+  await expect(page.getByText('模型配置不齐全', { exact: false })).toBeVisible()
+  await page.getByRole('button', { name: '重新读取', exact: true }).click()
+  await expect.poll(() => reads).toBeGreaterThan(1)
+  expect(creates).toBe(0)
+  await capture(page, info, 'real-missing-key-fixture.png')
+})

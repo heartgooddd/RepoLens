@@ -53,3 +53,8 @@ def isolated_environment(run_dir: Path) -> dict[str, str]:
     home.mkdir(exist_ok=True)
     return {'PATH': os.defpath, 'HOME': str(home), 'LANG': 'en_US.UTF-8', 'PYTHONUNBUFFERED': '1',
             'PYTHONDONTWRITEBYTECODE': '1', 'PYTHON_DOTENV_DISABLED': '1', 'LOG_DIR': str(run_dir / 'provider-logs')}
+
+
+def worker_command(input_dir: Path, output_dir: Path, language: str, topics: int) -> list[str]:
+    command = pocketflow_command(input_dir, output_dir, language, topics)
+    return [*command[:3], str(ROOT / 'server/pocketflow/worker.py'), *command[4:]]

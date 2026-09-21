@@ -92,6 +92,6 @@ function SnapshotWorkspace({ snapshot, name }: { snapshot: Snapshot; name: strin
       </section>
       <TaskPanel snapshot={snapshot} onResult={run=>{setResult(run);scroll('folder-detail')}} />
     </div>
-    <p className="footnote">真实文件与 SQLite 记录 · 事实附源码位置，名称推断单独标记 · 任务使用替身进程，不调用模型或执行输入代码。</p>
+    <p className="footnote">真实文件与 SQLite 记录 · 事实附源码位置，名称推断单独标记 · 运行窗口区分真实模型与替身验证 · 输入源码不作为程序执行。</p>
   </>
 }

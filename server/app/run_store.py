@@ -25,7 +25,7 @@ def list_runs(database: Path, snapshot_id: str, limit: int = 20, offset: int = 0
 
 
 def update_run(database: Path, run_id: str, **values) -> None:
-    allowed = {'status', 'stage', 'started_at', 'ended_at', 'exit_code', 'error'}
+    allowed = {'status', 'stage', 'started_at', 'ended_at', 'exit_code', 'error', 'model_usage'}
     if not values or not values.keys() <= allowed:
         raise ValueError('Invalid run fields')
     with connect(database) as db:

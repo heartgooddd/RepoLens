@@ -5,10 +5,11 @@ from .models import Record
 
 Status = Literal['queued', 'running', 'cancelling', 'cancelled', 'succeeded', 'failed', 'interrupted']
 ACTIVE = ('queued', 'running', 'cancelling')
-STAGES = ('FetchRepo', 'IdentifyAbstractions', 'AnalyzeRelationships', 'OrderChapters', 'WriteChapters', 'CombineTutorial')
+STAGES = ('FetchRepo', 'IdentifyAbstractions', 'AnalyzeRelationships', 'OrderChapters', 'WriteChapters', 'CombineTutorial', 'FolderResponsibilities')
 
 
 class RunRequest(Record):
+    mode: Literal['stub', 'pocketflow'] = 'stub'
     snapshot_id: UUID
     language: Literal['zh', 'en'] = 'zh'
     topics: int = Field(default=3, ge=1, le=10)
@@ -40,6 +41,10 @@ class Run(Record):
     exit_code: int | None
     error: str | None
     upstream_commit: str
+    model_provider: str | None = None
+    model_name: str | None = None
+    prompt_version: str | None = None
+    model_usage: str | None = None
     artifacts: list[Artifact] = Field(default_factory=list)
 
 

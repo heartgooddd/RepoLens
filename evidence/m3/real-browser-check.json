@@ -1,0 +1,46 @@
+{
+  "run_id": "1acf3d68-c857-4acf-89d9-bee17f98c512",
+  "viewports": [
+    {
+      "name": "desktop",
+      "width": 1440,
+      "height": 1000,
+      "all_markdown_headers_and_first_code_blocks_match": true,
+      "downloads_match": true,
+      "verified_files": [
+        "project/01_本地文件爬取器_.md",
+        "project/02_远程仓库文件爬取器_.md",
+        "project/03_llm调用器_.md",
+        "project/index.md"
+      ],
+      "internal_chapter_link": true,
+      "history_reopened": true,
+      "no_horizontal_overflow": true
+    },
+    {
+      "name": "narrow",
+      "width": 390,
+      "height": 844,
+      "all_markdown_headers_and_first_code_blocks_match": true,
+      "downloads_match": true,
+      "verified_files": [
+        "project/01_本地文件爬取器_.md",
+        "project/02_远程仓库文件爬取器_.md",
+        "project/03_llm调用器_.md",
+        "project/index.md"
+      ],
+      "internal_chapter_link": true,
+      "history_reopened": true,
+      "no_horizontal_overflow": true
+    }
+  ],
+  "page_errors": [],
+  "backend_restart": {
+    "old_pid": 15399,
+    "new_pid": 18776,
+    "database_api_files_unchanged": true,
+    "history_result_reopened": true,
+    "stage_log_read_back": true,
+    "new_model_requests": 0
+  }
+}
