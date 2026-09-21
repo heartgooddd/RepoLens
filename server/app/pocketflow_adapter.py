@@ -1,12 +1,13 @@
 """Fixed, pinned entry points. RunRequest never supplies a command or executable."""
 import os
+import json
 import subprocess
 import sys
 from pathlib import Path
 from .config import ROOT
 from .import_policy import fail
 
-COMMIT = '05b24cbbb0fe409c5e23c9791f0342f07524ffdc'
+COMMIT = json.loads((ROOT / 'server/pocketflow/source.json').read_text())['commit']
 UPSTREAM = ROOT / 'upstream' / 'pocketflow-codebase-knowledge'
 PYTHON = ROOT / 'server' / 'pocketflow' / '.venv' / 'bin' / 'python'
 
