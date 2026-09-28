@@ -129,7 +129,7 @@ test('响应式导航和键盘入口', async ({ page }, testInfo) => {
     await page.getByRole('navigation', { name: '工作台区域导航' }).getByRole('button', { name: '运行窗口' }).click()
     await expect(page.getByRole('heading', { name: '运行窗口', exact: true })).toBeInViewport()
     await page.getByRole('navigation', { name: '工作台区域导航' }).getByRole('button', { name: '解释与结果' }).click()
-    await expect(page.getByRole('button', { name: '文件夹说明', exact: true })).toBeInViewport()
+    await expect(page.getByRole('button', { name: '位置与源码', exact: true })).toBeInViewport()
   }
   for (const width of [320, 768, 1024, 1440]) {
     await page.setViewportSize({ width, height: 1000 })

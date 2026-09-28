@@ -1,8 +1,9 @@
 import { useState } from 'react'
-import { snapshot, sourceUrl, stages } from '../demo/pocketflow'
-import type { FolderCard, SourceFile } from '../types'
+import { snapshot, sourceUrl } from '../demo/pocketflow'
+import type { FolderCard, FolderId, SourceFile } from '../types'
+import { DemoFolderVisual } from './ProjectVisuals'
 
-export function FolderDetail({ folder }: { folder: FolderCard }) {
+export function FolderDetail({ folder, onSelect }: { folder: FolderCard; onSelect: (id: FolderId) => void }) {
   const [source, setSource] = useState<SourceFile | null>(null)
   return <>
     <div className="main-top">
@@ -11,6 +12,7 @@ export function FolderDetail({ folder }: { folder: FolderCard }) {
       <p className="folder-description">{folder.description}</p>
     </div>
     <div className="main-content">
+      <DemoFolderVisual id={folder.id} onSelect={onSelect} />
       <div className="section-heading"><h3>关键文件与入口</h3><span className="section-note">点击查看源码片段</span></div>
       {folder.files.map(file => <button key={file.path} className={`file-card ${source?.path === file.path ? 'selected' : ''}`} aria-expanded={source?.path === file.path} aria-controls="source-preview" onClick={() => setSource(source?.path === file.path ? null : file)}>
         <b>{file.path}</b><small>{file.purpose} ↗</small>
@@ -24,9 +26,6 @@ export function FolderDetail({ folder }: { folder: FolderCard }) {
       </div>
       <div className="evidence-card"><b>解释依据 · {snapshot.slice(0, 7)}</b><p>说明与片段按固定版本人工整理，当前页面未自动扫描源码；这些线索不代表实际运行验证。</p></div>
       <div className="next-reading"><span className="mini-label">建议下一步</span><p>{folder.next}</p></div>
-      <div className="divider" />
-      <div className="section-heading"><h3>项目生成流程</h3><span className="section-note">6 个阶段 · 设计示意</span></div>
-      <ol className="flow-grid">{stages.map((stage, index) => <li className="flow-card" key={stage}><span className="flow-num">0{index + 1}</span><b>{stage}</b></li>)}</ol>
     </div>
   </>
 }
