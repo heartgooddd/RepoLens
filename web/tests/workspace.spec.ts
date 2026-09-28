@@ -18,6 +18,15 @@ async function openSample(page: Page) {
   await page.goto('/')
   await page.getByRole('link', { name: '进入 PocketFlow 示例工作台' }).click()
   await expect(page.getByRole('heading', { name: 'PocketFlow 项目地图' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: '一张图看懂源码怎样变成教程' })).toBeVisible()
+}
+
+async function openRunPanel(page: Page) {
+  const trigger = page.getByRole('button', { name: /试着生成项目导览/ })
+  await expect(trigger).toHaveAttribute('aria-expanded', 'false')
+  await trigger.click()
+  await expect(trigger).toHaveAttribute('aria-expanded', 'true')
+  await expect(page.getByRole('heading', { name: '运行窗口', exact: true })).toBeVisible()
 }
 
 async function expectNoOverflow(page: Page) {
@@ -43,6 +52,10 @@ test('输入页、文件夹证据、空结果与导航', async ({ page }, testIn
   await capture(page, testInfo, 'home.png')
   await page.getByRole('link', { name: '进入 PocketFlow 示例工作台' }).click()
   await expect(page.getByRole('heading', { name: 'PocketFlow 项目地图' })).toBeVisible()
+  await expect(page.getByRole('region', { name: '项目名称与简介' })).toContainText('Markdown 入门教程')
+  await expect(page.getByRole('heading', { name: '一张图看懂源码怎样变成教程' })).toBeVisible()
+  await expect(page.getByRole('region', { name: '源码片段' })).toHaveCount(0)
+  await expect(page.getByRole('heading', { name: '运行窗口', exact: true })).toHaveCount(0)
   await capture(page, testInfo, 'workspace.png')
   await page.getByRole('button', { name: '运行结果', exact: true }).click()
   await expect(page.getByRole('heading', { name: '还没有演示结果' })).toBeVisible()
@@ -50,12 +63,13 @@ test('输入页、文件夹证据、空结果与导航', async ({ page }, testIn
   await page.getByRole('button', { name: 'main.py', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'main.py / 程序入口' })).toBeVisible()
   await expect(page.getByRole('button', { name: 'main.py', exact: true })).toHaveAttribute('aria-pressed', 'true')
+  await expect(page.getByRole('region', { name: '源码片段' })).toHaveCount(0)
   await page.getByRole('button', { name: 'main.py 命令行参数与流程启动' }).click()
   await expect(page.getByRole('region', { name: '源码片段' })).toContainText('ArgumentParser')
   await expectNoOverflow(page)
   await expect(page.getByRole('link', { name: '在 GitHub 查看这个版本' })).toHaveAttribute('href', /05b24cbbb0fe409c5e23c9791f0342f07524ffdc\/main.py#L40/)
-  await page.getByRole('button', { name: 'docs / 设计文档' }).click()
-  await expect(page.getByRole('heading', { name: 'docs / 设计文档' })).toBeVisible()
+  await page.getByRole('button', { name: 'docs / 样书与设计' }).click()
+  await expect(page.getByRole('heading', { name: 'docs / 样书与设计' })).toBeVisible()
   await expect(page.getByRole('region', { name: '源码片段' })).toHaveCount(0)
   await expectNoOverflow(page)
   await page.getByRole('link', { name: '返回输入页' }).click()
@@ -68,6 +82,7 @@ test('成功演示保留参数快照并切换章节', async ({ page }, testInfo)
   await openSample(page)
   await page.getByRole('button', { name: 'flow.py', exact: true }).click()
   await expect(page.getByRole('heading', { name: 'flow.py / 流程编排' })).toBeVisible()
+  await openRunPanel(page)
   await page.getByLabel('输出语言').selectOption('en')
   await page.getByLabel('最大主题数').selectOption('5')
   await page.getByRole('button', { name: '开始演示运行' }).click()
@@ -98,6 +113,7 @@ test('成功演示保留参数快照并切换章节', async ({ page }, testInfo)
 
 test('失败情境、重试和停止不会留下过期结果', async ({ page }, testInfo) => {
   await openSample(page)
+  await openRunPanel(page)
   await page.getByLabel('演示情境').selectOption('failure')
   await page.getByRole('button', { name: '开始演示运行' }).click()
   await expect(page.getByRole('status')).toHaveText('演示失败')
@@ -115,6 +131,7 @@ test('失败情境、重试和停止不会留下过期结果', async ({ page }, 
   await expect(page.getByRole('status')).toHaveText('演示完成')
   await page.getByRole('link', { name: '返回输入页' }).click()
   await page.getByRole('link', { name: '进入 PocketFlow 示例工作台' }).click()
+  await openRunPanel(page)
   await expect(page.getByRole('status')).toHaveText('尚未开始')
 })
 

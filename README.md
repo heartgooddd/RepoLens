@@ -20,24 +20,26 @@ macOS 安装好 Git、Python3.14、Node22.12+（22.x）后，双击根目录 **I
 
 当前功能已覆盖 **M5已登记操作配方及M6本地交付**。页面支持公开 GitHub 固定版本导入、真实地图、配方生成参数表单、运行日志/取消/退出码、历史结果与产物预览。首份配方是 `pocketflow-tutorial@1`；后台通过 macOS 沙箱执行固定入口，快照作为只读分析输入。M6技术结果见 [交付验收](evidence/m6/acceptance.md)；**3位真实用户试用仍为0/3，未完成，反馈迭代未完成**，不把自动化验证当用户反馈。
 
-工作台先用可视化总览展示项目目标和重要位置，再用“接收什么 → 做什么 → 交出什么”解释所选位置。PocketFlow 演示图依据固定版本人工整理；导入官方仓库的同一 Commit 时沿用这张图，并可进入当前快照核对源码。其他公开 GitHub 仓库的总览从 README 与静态目录快照构建，目录职责提示来自路径和文件类型，调用关系仍须进入源码核对。
+工作台按“项目名称与简介 → 项目体系 → 模块位置与职责”三步展示。PocketFlow 演示图依据固定版本人工整理，区分启动、编排、六站处理、工具支撑和文档展示；导入官方仓库的同一 Commit 时沿用这张图，并可进入当前快照核对源码。其他公开 GitHub 仓库会从 README、源码定义、目录结构与 Python/JS/TS 静态导入生成分层体系图，优先展示有依据的入口阅读路线；界面标明源码线索、名称推断和待核实信息。导入箭头表示源码依赖，不等于运行顺序。运行任务已移到可展开区域，阅读地图时不会挤占页面。
 
 M3 从页面启动一次 `utils / 中文 / 3主题` 真实任务，模型 `deepseek/deepseek-v4-flash`，7次模型调用全部成功，无重试，API报告费用 **$0.0034756449**。数据库、输出、页面下载一致，后台重启后历史结果可重开。见 [真实验收与截图](evidence/m3/acceptance.md)、[实际生成索引](evidence/m3/real-output/index.md)、[任务配置与接口](docs/07-task-runner.md)。M5 沿用此实跑证据，本轮未发起付费模型请求；沙箱内 worker 与页面运行使用离线响应测试。
 
-M4 实际远程读取官方 PocketFlow，固定 Commit `05b24cbbb0fe409c5e23c9791f0342f07524ffdc`；重复导入复用同一源码快照。模型结果缓存另按模型、提示词、配方版本和全部参数隔离。远程导入不会执行仓库代码，任意远程仓库也不会自动获得真实运行能力。见 [M4验收](evidence/m4/acceptance.md)和[导入说明](docs/09-github-import.md)。下一步为真实试用与证据驱动反馈迭代；所有提交只保存在本机。
+M4 实际远程读取官方 PocketFlow，固定 Commit `05b24cbbb0fe409c5e23c9791f0342f07524ffdc`；重复导入复用同一源码快照。模型结果缓存另按模型、提示词、配方版本和全部参数隔离。远程导入不会执行仓库代码，任意远程仓库也不会自动获得真实运行能力。见 [M4验收](evidence/m4/acceptance.md)和[导入说明](docs/09-github-import.md)。下一步为真实试用与证据驱动反馈迭代。
 
 ## 开发方式：单独启动后台
 
-在另一个终端运行：
+从仓库根目录在另一个终端运行（首次运行先创建环境并安装依赖）：
 
 ```bash
-cd '/Users/Vibe coding/AI_product/AI Program/RepoLens/server'
-REPOLENS_ENABLE_REAL_RUN=1 .venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
+cd server
+python3.14 -m venv .venv
+.venv/bin/python -m pip install -r requirements.lock
+.venv/bin/python -m uvicorn app.main:app --host 127.0.0.1 --port 8000
 ```
 
-打开 **http://127.0.0.1:8000/docs** 查看健康检查、项目导入、源码以及任务／日志／产物接口。新环境列表为空；本机已经保存本次验证的 PocketFlow 快照。`Ctrl+C` 停止；重启会继续使用同一 SQLite 数据库；成功结果可重开，未完成任务标记为“中断”，不自动续跑。前端仍按下方方式单独启动。
+打开 **http://127.0.0.1:8000/docs** 查看健康检查、项目导入、源码以及任务／日志／产物接口。新环境列表为空；导入的快照保存在当前机器的 `var/` 中。`Ctrl+C` 停止；重启会继续使用同一 SQLite 数据库；成功结果可重开，未完成任务标记为“中断”，不自动续跑。前端仍按下方方式单独启动。
 
-本机 Python 3.14.6 的独立虚拟环境已安装。首次在其他环境安装，在 `server/` 执行 `python3.14 -m venv .venv` 和 `.venv/bin/python -m pip install -r requirements.lock`。后台启动会自动迁移；也可执行 `.venv/bin/python -m app.migrate`。验证命令为 `.venv/bin/python -m pytest -q`。
+项目以 Python 3.14 为目标版本。后台启动会自动迁移；也可在 `server/` 执行 `.venv/bin/python -m app.migrate`。验证命令为 `.venv/bin/python -m pytest -q`。
 
 PocketFlow 依赖另装在 `server/pocketflow/.venv/`，固定来源、Commit、许可证和安装命令见 [PocketFlow 环境说明](server/pocketflow/README.md)。替身任务只使用后台环境；真实任务使用PocketFlow隔离环境和固定适配入口。`REPOLENS_ENABLE_REAL_RUN=1` 开启真实选项，省略则仅替身；本机 `server/.env` 的模型配置读取方式见 [OpenRouter设置](docs/08-openrouter-setup.md)。密钥不显示、不提交；填写密钥不会自行启动任务。后台保持单进程，不添加 `--workers`。
 
@@ -45,10 +47,11 @@ PocketFlow 依赖另装在 `server/pocketflow/.venv/`，固定来源、Commit、
 
 ## 开发方式：单独打开页面
 
-在终端运行：
+从仓库根目录在终端运行（首次运行先执行 `npm ci`）：
 
 ```bash
-cd '/Users/Vibe coding/AI_product/AI Program/RepoLens/web'
+cd web
+npm ci
 npm run dev
 ```
 
@@ -57,12 +60,12 @@ npm run dev
 本机已安装依赖；首次在其他环境使用或锁文件变化后，先在 `web/` 执行 `npm ci`。开发时记录的环境为 Node.js 22.23.0、npm 10.9.8，依赖为 React 19.3.0、TypeScript 7.0.2、Vite 8.3.0，具体版本由 `web/package-lock.json` 锁定。Node 要求为 20.19+ 或 22.12+，见 [Vite 官方说明](https://vite.dev/guide/)。
 
 1. 先启动后台，再启动前端。在首页粘贴完整公开 GitHub 仓库地址并点击“读取公开仓库”；也可点击“扫描 PocketFlow 样本”读取本地上游 Git HEAD，或点击“选择本地文件夹”上传选定目录。
-2. 工作台显示“真实快照”。点击目录逐级展开，选择 `main.py`、`flow.py`、`nodes.py` 或 `utils` 内的文件，点击定义／入口行号查看已校验的源码。
+2. 工作台先显示项目简介和分层体系图。点击模块或关系定位到它所在的文件夹，再点文件或证据行号读取已校验的源码；源码默认收起。
 3. 刷新页面，或停掉后台再启动，仍可打开相同项目 URL；首页“已保存的项目”也可重开。数据位于 `var/`，不是浏览器缓存。
-4. 在真实工作台右侧选择“真实 PocketFlow”，确认 `utils / 中文 / 3主题`，点击“启动真实任务”。这会使用本机OpenRouter配置并产生费用；当前只允许固定PocketFlow快照，最多3主题。成功后点击“查看真实结果”，切换章节或下载。只查看历史不会再次调用模型。
+4. 在真实工作台底部展开“运行此项目的分析任务”，选择“真实 PocketFlow”，确认 `utils / 中文 / 3主题`，点击“启动真实任务”。这会使用本机OpenRouter配置并产生费用；当前只允许固定PocketFlow快照，最多3主题。成功后点击“查看真实结果”，切换章节或下载。只查看历史不会再次调用模型。
    无模型验证请选择“替身验证”，可用成功／失败／慢速情境检查任务行为，输出明确标为固定内容。
-5. 已有验收结果可直接打开 [PocketFlow真实项目](http://127.0.0.1:5173/#/projects/9fc3751c-93e8-429a-bbdb-9383a7f7685e)，点击“查看真实结果”，不必再启动。刷新后从“运行历史”重开结果。修改当前表单不改变历史任务参数。未成功任务不展示成功产物；后台关闭时活动任务会中断。
-6. 想对比原有交互，点击“进入 PocketFlow 示例工作台 · 演示”或右侧“打开 M1 浏览器演示”。这个独立入口仍使用浏览器内预置数据。
+5. 已在当前机器导入的项目可从首页“已保存的项目”重开；展开运行区后可查看此前成功的真实结果，不必再次启动。修改当前表单不改变历史任务参数。未成功任务不展示成功产物；后台关闭时活动任务会中断。本地项目 ID 和快照不随 Git 提交。
+6. 想对比原有交互，点击“进入 PocketFlow 示例工作台 · 演示”，或在运行区点击“打开 M1 浏览器演示”。这个独立入口仍使用浏览器内预置数据。
 
 真实地图通过同源 `/api` 代理连接 `127.0.0.1:8000`，默认前端地址仍是 5173；如需改后端地址，在启动 Vite 时设置 `REPOLENS_API_PROXY`（仅本机配置，不是用户仓库输入）。生产构建不自带 Python 后台或代理，外部部署尚未配置；本地 `npm run preview` 也配置了相同代理。
 

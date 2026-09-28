@@ -189,6 +189,10 @@ curl 'http://127.0.0.1:8000/api/projects?limit=20&offset=0'
 
 `id` 为 UUID；`path` 必须已登记在该快照；`start ≥ 1`；`limit` 1–200，默认 80。返回 `200 {path, sha256, line_start, line_end, total_lines, content}`，源码行号从 1 起，两端包含。不渲染 HTML 或执行源码；单次片段输出 ≤ 64 KiB。空文件返回 `total_lines=0`、`content=""`。读取前检查路径、链接及完整文件 SHA-256；只允许已保存文件。
 
+### `GET /api/snapshots/{snapshot_id}/architecture`
+
+返回已登记快照的静态架构图：项目名称、从根 README（或 `package.json` 描述）提取的简介、模块、模块关系、分析覆盖量和限制说明。所有文件在分析前重新校验 SHA-256，文件丢失或变化时返回 409。`modules` 包含根目录、保留的文件夹、根目录源码与配置文件、显式入口文件；每项给出 `id/title/role/kind/paths/evidence/confidence/file_count`。`connections` 的 `from_id/to_id` 指向模块，`kind` 区分目录 `contains`、源码 `imports` 和清单 `references`，每条导入或引用附源码行号。`coverage` 给出保留文件数、检查的源码文件数、文件夹数、解析出的导入数和未解析的本地导入数。目录类别仅由名称推断时标为 `inferred`；静态导入不等于运行时调用或执行顺序。
+
 ### 错误状态
 
 错误体统一 `{"detail":{"code":"...","message":"可显示给用户的中文提示"}}`；已有项目 404 / 健康检查 503 保留字符串 `detail`。
@@ -210,9 +214,9 @@ curl 'http://127.0.0.1:8000/api/projects?limit=20&offset=0'
 
 `POST /api/github-imports` 接受 `{"repository_url":"https://github.com/owner/repo"}` 并返回 `202` 导入任务；`GET /api/github-imports/{id}` 返回阶段、百分比、Commit、缓存命中、项目／快照ID和错误。详细状态、限制、缓存键和错误码见 [M4说明](../docs/09-github-import.md)。
 
-后台只访问固定的 `api.github.com` 和 `codeload.github.com`；不 follow redirect，不 clone，不执行hooks或仓库文件。远程解析与归档下载合计30秒，超时后不会开始本地保存；压缩16MiB、2000条目、解包32MiB，之后继续应用M2的500文件／8MiB／单文件1MiB上限。归档逐成员验证且不调用通用extract。
+正常路径只访问固定的 `api.github.com` 和 `codeload.github.com`。当公开 API 限流时，后台会在隔离临时目录中以禁用凭据、配置、交互提示和重定向的只读 `git ls-remote --symref` 查询 `github.com` 的公开默认 HEAD，再按 40 位 Commit 从同一个 `codeload.github.com` 下载归档；不 clone，不执行 hooks 或仓库文件。远程解析与归档下载合计30秒，超时后不会开始本地保存；压缩16MiB、2000条目、解包32MiB，之后继续应用M2的500文件／8MiB／单文件1MiB上限。归档逐成员验证且不调用通用extract。
 
-无Token时使用GitHub公开API额度；可在进程环境设置 `REPOLENS_GITHUB_TOKEN`，不会写入数据库或页面。404、限流、超时、无效归档和越界路径均进入失败终态，不登记成功快照。验收见 [M4记录](../evidence/m4/acceptance.md)。
+无Token时使用GitHub公开API额度，额度耗尽时尝试上述公开 HEAD 回退；可在进程环境设置 `REPOLENS_GITHUB_TOKEN`，不会写入数据库或页面。404、回退失败、超时、无效归档和越界路径均进入失败终态，不登记成功快照。验收见 [M4记录](../evidence/m4/acceptance.md)。
 
 
 ## 任务与产物 API（步骤 6–7）

@@ -2,6 +2,23 @@ export interface Evidence { id: string; file_path: string; line_start: number; l
 export interface Card { id: string; path: string; title: string; description: string; claim_type: 'fact' | 'inference' | 'unverified'; inference: string | null; evidence_refs: Evidence[] }
 export interface SourceFile { path: string; size_bytes: number; sha256: string }
 export interface Snapshot { id: string; revision: string; commit_sha: string | null; created_at: string; files: SourceFile[]; folder_cards: Card[] }
+export interface ArchitectureEvidence { file_path: string; line_start: number; line_end: number; excerpt: string }
+export interface ArchitectureModule {
+  id: string; title: string; role: string;
+  kind: 'entry' | 'interface' | 'core' | 'data' | 'support' | 'docs' | 'tests' | 'other';
+  paths: string[]; evidence: ArchitectureEvidence[];
+  confidence: 'observed' | 'inferred' | 'unknown'; file_count: number;
+}
+export interface ArchitectureConnection {
+  from_id: string; to_id: string; kind: 'imports' | 'contains' | 'references';
+  label: string; evidence: ArchitectureEvidence[];
+}
+export interface Architecture {
+  snapshot_id: string; project_name: string; summary: string; summary_source: ArchitectureEvidence | null;
+  modules: ArchitectureModule[]; connections: ArchitectureConnection[];
+  limitations: string[];
+  coverage: { retained_files: number; inspected_source_files: number; folders: number; resolved_imports: number; unresolved_local_imports: number };
+}
 export interface Project { id: string; name: string; source_type: string; source_label: string; created_at: string }
 export interface Detail { project: Project; snapshots: Snapshot[] }
 export interface ProjectList { items: (Project & { snapshot_count: number })[]; total: number; offset: number; limit: number }
@@ -29,6 +46,7 @@ export async function request<T>(path: string, options: RequestInit = {}): Promi
 }
 export const projects = (offset = 0, signal?: AbortSignal) => request<ProjectList>(`/projects?offset=${offset}`, { signal })
 export const project = (id: string, signal?: AbortSignal) => request<Detail>(`/projects/${encodeURIComponent(id)}`, { signal })
+export const architecture = (id: string, signal?: AbortSignal) => request<Architecture>(`/snapshots/${encodeURIComponent(id)}/architecture`, { signal })
 export const source = (id: string, path: string, start: number, signal?: AbortSignal) => request<SourceSlice>(`/snapshots/${id}/source?${new URLSearchParams({ path, start: String(start), limit: '80' })}`, { signal })
 export const importBuiltin = () => request<ImportResult>('/projects/import', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ source: 'builtin' }) })
 export const startGitHubImport = (repositoryUrl: string) => request<GitHubImportJob>('/github-imports', {

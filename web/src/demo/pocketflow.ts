@@ -24,7 +24,7 @@ export const folders: FolderCard[] = [
     { path: 'utils/crawl_github_files.py', purpose: '读取 GitHub 仓库文件', line: 11, excerpt: 'def crawl_github_files(\n    repo_url, \n    token=None, \n    max_file_size: int = 1 * 1024 * 1024,  # 1 MB\n    use_relative_paths: bool = False,' },
     { path: 'utils/call_llm.py', purpose: '模型调用与缓存', line: 128, excerpt: 'def call_llm(prompt: str, use_cache: bool = True) -> str:\n    # Log the prompt\n    logger.info(f"PROMPT: {prompt}")\n\n    # Check cache if enabled\n    if use_cache:' },
   ], next: '在 nodes.py 中查看这些辅助函数由哪些节点调用。' },
-  { id: 'docs', label: 'docs / 设计文档', title: 'docs / 设计文档', description: '保存上游项目的设计说明，包括输入、预期输出和流程设计。文档描述设计意图，具体行为仍需结合源码核对。', files: [
+  { id: 'docs', label: 'docs / 样书与设计', title: 'docs / 样书与设计', description: '保存设计说明、文档站点索引与已发布的教程示例。它供人阅读和展示，不在 main.py 启动的生成流程中；新的生成结果默认写入 output/。', files: [
     { path: 'docs/design.md', purpose: '需求与流程设计说明', line: 7, excerpt: '# System Design: Codebase Knowledge Builder\n\n> Please DON\'T remove notes for AI\n\n## Requirements' },
   ], next: '将 design.md 的流程说明与 flow.py 的节点连接对照阅读。' },
   { id: 'main', label: 'main.py', title: 'main.py / 程序入口', description: '接收仓库或本地目录、语言和输出位置等参数，准备共享数据并启动教程生成流程。', files: [main], next: '了解输入后，继续阅读 flow.py 中的 create_tutorial_flow。' },

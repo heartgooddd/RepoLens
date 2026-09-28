@@ -6,9 +6,11 @@ import time
 
 import httpx
 import pytest
+from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
-from app.github_importer import MAX_ARCHIVE_BYTES, MAX_ARCHIVE_FILES, read_archive
+from app.github_importer import MAX_ARCHIVE_BYTES, MAX_ARCHIVE_FILES, parse_github_url, read_archive, resolve_public_head
+from app.import_policy import fail
 from app.main import create_app
 from app import github_importer
 
@@ -40,6 +42,8 @@ class GitHubFixture:
         self.commit = COMMIT_A
         self.repo_status = 200
         self.rate_limited = False
+        self.commit_rate_limited = False
+        self.private = False
         self.archive_files = None
         self.calls: list[str] = []
 
@@ -52,9 +56,11 @@ class GitHubFixture:
                 "name": "PocketFlow-Tutorial-Codebase-Knowledge",
                 "full_name": "The-Pocket/PocketFlow-Tutorial-Codebase-Knowledge",
                 "default_branch": "main",
-                "private": False,
+                "private": self.private,
             })
         if request.url.host == "api.github.com" and "/commits/" in request.url.path:
+            if self.commit_rate_limited:
+                return httpx.Response(403, headers={"x-ratelimit-remaining": "0"}, json={"message": "API rate limit exceeded"})
             return httpx.Response(200, json={"sha": self.commit})
         if request.url.host == "codeload.github.com":
             return httpx.Response(200, content=archive(self.commit, self.archive_files))
@@ -146,11 +152,19 @@ def test_new_default_branch_commit_adds_a_version_to_the_same_project(settings):
 
 @pytest.mark.parametrize("setup,code", [
     (lambda fixture: setattr(fixture, "repo_status", 404), "github_repository_not_found"),
+    (lambda fixture: setattr(fixture, "private", True), "github_repository_not_found"),
     (lambda fixture: setattr(fixture, "rate_limited", True), "github_rate_limited"),
 ])
-def test_remote_errors_have_stable_codes_and_do_not_create_projects(settings, setup, code):
+def test_remote_errors_have_stable_codes_and_do_not_create_projects(settings, monkeypatch, setup, code):
     fixture = GitHubFixture()
     setup(fixture)
+    fallback_calls = []
+
+    async def unavailable_fallback(repository):
+        fallback_calls.append(repository.canonical_url)
+        fail("github_rate_limited", "GitHub API 已限流，且无法读取公开仓库 HEAD。", 429)
+
+    monkeypatch.setattr(github_importer, "resolve_public_head", unavailable_fallback)
     app = create_app(settings)
     app.state.github_importer.transport = httpx.MockTransport(fixture)
     with TestClient(app) as client:
@@ -159,6 +173,77 @@ def test_remote_errors_have_stable_codes_and_do_not_create_projects(settings, se
         assert job["error_code"] == code and job["error_message"]
         assert client.get("/api/projects").json()["total"] == 0
         assert list((settings.data_dir / "snapshots").iterdir()) == []
+        assert len(fallback_calls) == int(fixture.rate_limited)
+
+
+@pytest.mark.parametrize("rate_limited,commit_rate_limited", [(True, False), (False, True)])
+def test_api_rate_limit_uses_public_head_and_pins_archive(settings, monkeypatch, rate_limited, commit_rate_limited):
+    fixture = GitHubFixture()
+    fixture.rate_limited = rate_limited
+    fixture.commit_rate_limited = commit_rate_limited
+    resolved = []
+
+    async def public_head(repository):
+        resolved.append(repository.canonical_url)
+        return COMMIT_A
+
+    monkeypatch.setattr(github_importer, "resolve_public_head", public_head)
+    app = create_app(settings)
+    app.state.github_importer.transport = httpx.MockTransport(fixture)
+    with TestClient(app) as client:
+        job = start(client)
+        assert job["status"] == "succeeded" and job["commit_sha"] == COMMIT_A
+        assert resolved == [POCKETFLOW_URL]
+        assert [url for url in fixture.calls if "codeload.github.com" in url] == [
+            f"https://codeload.github.com/The-Pocket/PocketFlow-Tutorial-Codebase-Knowledge/tar.gz/{COMMIT_A}"
+        ]
+        assert client.get("/api/projects").json()["total"] == 1
+
+
+def test_public_head_resolver_uses_isolated_git_and_requires_symref(monkeypatch):
+    calls = []
+
+    class Process:
+        returncode = 0
+
+        async def communicate(self):
+            return f"ref: refs/heads/main\tHEAD\n{COMMIT_A}\tHEAD\n".encode(), b""
+
+    async def create(*args, **kwargs):
+        calls.append((args, kwargs))
+        return Process()
+
+    monkeypatch.setattr(github_importer.asyncio, "create_subprocess_exec", create)
+    commit = asyncio.run(resolve_public_head(parse_github_url(POCKETFLOW_URL)))
+    assert commit == COMMIT_A
+    args, kwargs = calls[0]
+    assert args[-2:] == (POCKETFLOW_URL + ".git", "HEAD")
+    assert "--symref" in args and "http.followRedirects=false" in args
+    assert kwargs["env"]["GIT_TERMINAL_PROMPT"] == "0"
+    assert kwargs["env"]["GIT_ALLOW_PROTOCOL"] == "https"
+    assert "GIT_CONFIG_COUNT" not in kwargs["env"]
+    assert "repolens-github-head-" in kwargs["cwd"]
+
+
+@pytest.mark.parametrize("output,returncode,code", [
+    (f"{COMMIT_A}\tHEAD\n", 0, "github_invalid_response"),
+    ("ref: refs/heads/main\tHEAD\nnot-a-commit\tHEAD\n", 0, "github_invalid_response"),
+    (b"", 128, "github_rate_limited"),
+])
+def test_public_head_resolver_fails_closed_on_unverified_refs(monkeypatch, output, returncode, code):
+    class Process:
+        async def communicate(self):
+            return output.encode() if isinstance(output, str) else output, b""
+
+    async def create(*_args, **_kwargs):
+        process = Process()
+        process.returncode = returncode
+        return process
+
+    monkeypatch.setattr(github_importer.asyncio, "create_subprocess_exec", create)
+    with pytest.raises(HTTPException) as error:
+        asyncio.run(resolve_public_head(parse_github_url(POCKETFLOW_URL)))
+    assert error.value.detail["code"] == code
 
 
 def test_archive_paths_must_stay_inside_one_repository_root(settings):

@@ -1,12 +1,12 @@
 import { useEffect, useState } from 'react'
-import { project, source } from '../api/projects'
+import { architecture as getArchitecture, project, source } from '../api/projects'
 import { TaskPanel } from '../components/TaskPanel'
 import { TaskResult } from '../components/TaskResult'
 import { DemoFolderVisual, DemoOverview, SnapshotFolderVisual, SnapshotOverview } from '../components/ProjectVisuals'
 import { folders as pocketFlowFolders, snapshot as pocketFlowCommit } from '../demo/pocketflow'
 import type { FolderId } from '../types'
 import type { Run } from '../api/runs'
-import type { Detail, Snapshot, SourceSlice } from '../api/projects'
+import type { Architecture, ArchitectureEvidence, ArchitectureModule, Detail, Snapshot, SourceSlice } from '../api/projects'
 
 const parent = (path: string) => path.includes('/') ? path.slice(0, path.lastIndexOf('/')) : '.'
 
@@ -29,7 +29,7 @@ function RepositoryWorkspace({ detail }: { detail: Detail }) {
   const snapshot = detail.snapshots.find(item => item.id === snapshotId)
   return <main className="wrap" id="main-content" tabIndex={-1}>
     <div className="page-heading">
-      <div><div className="eyebrow">PROJECT WORKSPACE / SOURCE</div><h1>{detail.project.name} 项目地图</h1><p className="lede">先看 README 与目录结构图，再沿源码证据核对具体作用。</p></div>
+      <div><div className="eyebrow">PROJECT WORKSPACE / SOURCE</div></div>
       <div className="source-pill"><span className="dot" /><strong>真实快照</strong><span>· {snapshot?.commit_sha?.slice(0, 7) || snapshot?.revision.slice(7, 15)}</span></div>
     </div>
     {detail.snapshots.length > 1 && <label>快照版本 <select value={snapshotId} onChange={event => setSnapshotId(event.target.value)}>{detail.snapshots.map(item => <option key={item.id} value={item.id}>{item.created_at} · {item.revision.slice(0, 20)}</option>)}</select></label>}
@@ -44,9 +44,14 @@ function RepositoryWorkspace({ detail }: { detail: Detail }) {
 
 function SnapshotWorkspace({ snapshot, name, sourceType, sourceLabel }: { snapshot: Snapshot; name: string; sourceType: string; sourceLabel: string }) {
   const [result, setResult] = useState<Run>()
+  const [runExpanded, setRunExpanded] = useState(false)
   const [folderPath, setFolderPath] = useState('.')
   const [focusedRole, setFocusedRole] = useState<FolderId>('root')
-  const [filePath, setFilePath] = useState(snapshot.files.find(file => file.path === 'main.py')?.path || snapshot.files[0]?.path || '')
+  const [architecture, setArchitecture] = useState<Architecture>()
+  const [architectureError, setArchitectureError] = useState('')
+  const [architectureLoading, setArchitectureLoading] = useState(true)
+  const [selectedModuleId, setSelectedModuleId] = useState<string>()
+  const [filePath, setFilePath] = useState('')
   const [start, setStart] = useState(1)
   const [loadedSlice, setSlice] = useState<SourceSlice>()
   const slice = loadedSlice?.path === filePath && loadedSlice.line_start === start ? loadedSlice : undefined
@@ -61,31 +66,49 @@ function SnapshotWorkspace({ snapshot, name, sourceType, sourceLabel }: { snapsh
   const displayPath = knownRole && ['main', 'flow', 'nodes'].includes(focusedRole) ? `${focusedRole}.py` : folderPath
   const scroll = (id: string) => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
   useEffect(() => {
+    if (knownPocketFlow) return
+    const controller = new AbortController()
+    getArchitecture(snapshot.id, controller.signal).then(setArchitecture).catch(error => { if (!controller.signal.aborted) setArchitectureError(error.message) }).finally(() => { if (!controller.signal.aborted) setArchitectureLoading(false) })
+    return () => controller.abort()
+  }, [snapshot.id, knownPocketFlow])
+  useEffect(() => {
     const controller = new AbortController()
     setSlice(undefined); setError('')
     if (filePath) source(snapshot.id, filePath, start, controller.signal).then(setSlice).catch(error => { if (!controller.signal.aborted) setError(error.message) })
     return () => controller.abort()
   }, [snapshot.id, filePath, start])
   function chooseFolder(path: string) {
-    setResult(undefined); setFolderPath(path); setFilePath(snapshot.files.find(file => parent(file.path) === path)?.path || ''); setStart(1)
+    setResult(undefined); setFolderPath(path); setFilePath(''); setStart(1)
     setFocusedRole(path === 'utils' || path === 'docs' ? path : 'root')
+    setSelectedModuleId(architecture?.modules.find(module => module.paths.includes(path))?.id)
     if (window.innerWidth < 761) scroll('folder-detail')
   }
   function chooseKnownRole(id: FolderId) {
     setResult(undefined); setFocusedRole(id); setStart(1)
     const path = id === 'utils' || id === 'docs' ? id : '.'
     setFolderPath(path)
-    setFilePath(id === 'main' || id === 'flow' || id === 'nodes' ? `${id}.py` : snapshot.files.find(file => parent(file.path) === path)?.path || '')
+    setFilePath(id === 'main' || id === 'flow' || id === 'nodes' ? `${id}.py` : '')
     scroll('folder-detail')
   }
-  function chooseFromOverview(path: string) {
-    chooseFolder(path)
+  function chooseArchitectureModule(module: ArchitectureModule) {
+    const location = module.paths[0] || '.'
+    const directFile = snapshot.files.find(file => file.path === location)
+    const folder = snapshot.folder_cards.some(card => card.path === location) ? location : directFile ? parent(directFile.path) : parent(location)
+    setResult(undefined); setSelectedModuleId(module.id); setFolderPath(folder)
+    setFilePath(directFile?.path || '')
+    setStart(1); scroll('folder-detail')
+  }
+  function chooseArchitectureEvidence(evidence: ArchitectureEvidence) {
+    setFolderPath(parent(evidence.file_path)); setFilePath(evidence.file_path); setStart(evidence.line_start)
+    setSelectedModuleId(architecture?.modules.find(module => module.paths.includes(evidence.file_path))?.id
+      || architecture?.modules.find(module => module.paths.includes(parent(evidence.file_path)))?.id)
     scroll('folder-detail')
   }
   return <>
-    {knownPocketFlow ? <DemoOverview source onSelect={chooseKnownRole} /> : <SnapshotOverview snapshot={snapshot} name={name} onSelect={chooseFromOverview} />}
-    <nav className="mobile-jump" aria-label="工作台区域导航"><button onClick={() => scroll('folder-map')}>文件夹</button><button onClick={() => scroll('folder-detail')}>源码与说明</button><button onClick={() => scroll('run-panel')}>运行窗口</button></nav>
-    <div className="workspace">
+    {knownPocketFlow ? <DemoOverview source selected={focusedRole} onSelect={chooseKnownRole} /> : architectureLoading ? <section className="analysis-loading" role="status"><span className="visual-kicker">正在分析此快照</span><h1>{name} 项目地图</h1><p>正在读取项目简介、主要模块和源码引用关系…</p></section> : <SnapshotOverview snapshot={snapshot} name={name} architecture={architecture} selectedId={selectedModuleId} onSelect={chooseArchitectureModule} />}
+    {architectureError && !knownPocketFlow && <p className="architecture-error" role="status">体系分析暂未载入：{architectureError}。下方仍可查看已保存的目录与源码。</p>}
+    <nav className="mobile-jump" aria-label="工作台区域导航"><button onClick={() => scroll('folder-map')}>文件夹</button><button onClick={() => scroll('folder-detail')}>源码与说明</button><button onClick={() => { setRunExpanded(true); requestAnimationFrame(() => scroll('run-section')) }}>运行窗口</button></nav>
+    <div className="workspace focus-workspace">
       <aside className="panel" id="folder-map" aria-label="真实文件夹地图">
         <div className="panel-pad"><div className="side-header"><h2 className="small-title">文件夹地图</h2><span className="count">{snapshot.files.length} 文件</span></div>
           <div className="repository-tree">{visibleFolders.map(item => <button className={`tree-item ${item.path === folderPath ? 'active' : ''}`} key={item.id} aria-pressed={item.path === folderPath} onClick={() => chooseFolder(item.path)}><span className="tree-icon" aria-hidden="true">▱</span><span>{item.path === '.' ? '/ 根目录' : item.path}</span></button>)}</div>
@@ -98,10 +121,10 @@ function SnapshotWorkspace({ snapshot, name, sourceType, sourceLabel }: { snapsh
           {!knownRole && card?.inference && <div className="evidence-card"><b>名称推断 · 待核实</b><p>{card.inference}</p></div>}
         </div>
         <div className="main-content">
-          {knownPocketFlow ? <DemoFolderVisual source id={focusedRole} onSelect={chooseKnownRole} /> : <SnapshotFolderVisual snapshot={snapshot} card={card} />}
+          {knownPocketFlow ? <DemoFolderVisual source id={focusedRole} onSelect={chooseKnownRole} /> : <SnapshotFolderVisual snapshot={snapshot} card={card} architecture={architecture} selectedId={selectedModuleId} onSelect={chooseArchitectureModule} onEvidence={chooseArchitectureEvidence} />}
           <div className="section-heading"><h3>此目录中的文件</h3><span className="section-note">点击核对保存的源码</span></div>
           {!files.length && <p className="muted">此目录只有子目录，请从左侧继续展开。</p>}
-          <div className="repository-files">{files.map(file => <button key={file.path} className={`file-card ${file.path === filePath ? 'selected' : ''}`} aria-pressed={file.path === filePath} onClick={() => { setFilePath(file.path); setStart(1); if (knownPocketFlow) setFocusedRole(file.path === 'main.py' ? 'main' : file.path === 'flow.py' ? 'flow' : file.path === 'nodes.py' ? 'nodes' : folderPath === 'utils' || folderPath === 'docs' ? folderPath : 'root') }}><b>{file.path}</b><small>{file.size_bytes.toLocaleString()} bytes</small></button>)}</div>
+          <div className="repository-files">{files.map(file => <button key={file.path} className={`file-card ${file.path === filePath ? 'selected' : ''}`} aria-pressed={file.path === filePath} onClick={() => { setFilePath(file.path); setStart(1); if (knownPocketFlow) setFocusedRole(file.path === 'main.py' ? 'main' : file.path === 'flow.py' ? 'flow' : file.path === 'nodes.py' ? 'nodes' : folderPath === 'utils' || folderPath === 'docs' ? folderPath : 'root'); else setSelectedModuleId(architecture?.modules.find(module => module.paths.includes(file.path))?.id || architecture?.modules.find(module => module.paths.includes(folderPath))?.id) }}><b>{file.path}</b><small>{file.size_bytes.toLocaleString()} bytes</small></button>)}</div>
           {filePath && <>
             <div className="section-heading"><h3>定义与源码线索</h3><span className="section-note">静态提取 · 未执行</span></div>
             {refs.length ? <div className="source-symbols">{refs.map(ref => <button className="text-button" key={ref.id} onClick={() => setStart(ref.line_start)}>{ref.symbol || '文本线索'} · L{ref.line_start}–{ref.line_end}</button>)}</div> : <p className="muted">{knownRole ? '静态扫描未提取到定义或配置线索；可阅读原始文件核对上方的固定版本说明。' : '没有提取到可解释功能的定义或配置线索，职责待核实。可阅读原始文件。'}</p>}
@@ -117,8 +140,10 @@ function SnapshotWorkspace({ snapshot, name, sourceType, sourceLabel }: { snapsh
         </div>
       </div>{result && <TaskResult key={result.id} run={result} onBack={() => setResult(undefined)} />}
       </section>
-      <TaskPanel snapshot={snapshot} onResult={run=>{setResult(run);scroll('folder-detail')}} />
     </div>
+    <section className="run-drawer" id="run-section"><button type="button" className="run-drawer-trigger" aria-expanded={runExpanded} onClick={() => setRunExpanded(value => !value)}><span><small>04 / 可选操作</small><strong>运行此项目的分析任务</strong><em>先读项目体系与源码，再决定是否生成导览</em></span><b>{runExpanded ? '收起 ↑' : '展开运行窗口 ↓'}</b></button>
+      {runExpanded && <TaskPanel snapshot={snapshot} onResult={run=>{setResult(run);scroll('folder-detail')}} />}
+    </section>
     <p className="footnote">真实文件与 SQLite 记录 · 事实附源码位置，名称推断单独标记 · 扫描与运行共用此快照 · 输入源码不作为程序执行。</p>
   </>
 }

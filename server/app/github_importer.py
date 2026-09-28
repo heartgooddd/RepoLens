@@ -7,6 +7,7 @@ import os
 import re
 import shutil
 import tarfile
+import tempfile
 import unicodedata
 from datetime import datetime, timezone
 from pathlib import PurePosixPath
@@ -29,6 +30,7 @@ MAX_ARCHIVE_BYTES = 16 * 1024 * 1024
 MAX_ARCHIVE_FILES = 2000
 MAX_UNPACKED_BYTES = 32 * 1024 * 1024
 NETWORK_DEADLINE_SECONDS = 30
+GIT_HEAD_TIMEOUT_SECONDS = 12
 SHA_PATTERN = re.compile(r"^[0-9a-f]{40}$")
 PART_PATTERN = re.compile(r"^[A-Za-z0-9_.-]{1,100}$")
 
@@ -86,6 +88,58 @@ def parse_github_url(value: str) -> GitHubRepositoryRef:
     return GitHubRepositoryRef(owner=owner, repo=repo,
                                repository_key=f"{owner.casefold()}/{repo.casefold()}",
                                canonical_url=f"https://github.com/{owner}/{repo}")
+
+
+async def resolve_public_head(repository: GitHubRepositoryRef) -> str:
+    """Read a public default HEAD when the anonymous REST API has exhausted its quota."""
+    verified = parse_github_url(repository.canonical_url)
+    if verified.repository_key != repository.repository_key:
+        fail("invalid_github_url", "GitHub 仓库地址与仓库标识不一致。")
+    git = shutil.which("git", path=os.defpath)
+    if git is None:
+        fail("github_rate_limited", "GitHub API 已限流，且本机没有 Git，无法读取公开仓库 HEAD。", 429)
+
+    # Run outside every local repository and user home. Git must not read saved
+    # credentials, follow redirects, prompt, or execute code from the remote.
+    with tempfile.TemporaryDirectory(prefix="repolens-github-head-") as workdir:
+        env = {
+            "HOME": workdir,
+            "XDG_CONFIG_HOME": workdir,
+            "GIT_CONFIG_NOSYSTEM": "1",
+            "GIT_CONFIG_GLOBAL": os.devnull,
+            "GIT_TERMINAL_PROMPT": "0",
+            "GIT_ALLOW_PROTOCOL": "https",
+        }
+        try:
+            process = await asyncio.create_subprocess_exec(
+                git, "-c", "credential.helper=", "-c", "http.followRedirects=false",
+                "ls-remote", "--symref", "--exit-code", "--", verified.canonical_url + ".git", "HEAD",
+                cwd=workdir, env=env, stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.DEVNULL,
+            )
+        except OSError:
+            fail("github_rate_limited", "GitHub API 已限流，且无法启动 Git 读取公开仓库 HEAD。", 429)
+        try:
+            output, _ = await asyncio.wait_for(process.communicate(), timeout=GIT_HEAD_TIMEOUT_SECONDS)
+        except TimeoutError:
+            fail("github_timeout", "读取 GitHub 公开仓库 HEAD 超时，请稍后重试。", 504)
+        except OSError:
+            fail("github_rate_limited", "GitHub API 已限流，且无法读取公开仓库 HEAD；请稍后重试或配置 Token。", 429)
+        finally:
+            if process.returncode is None:
+                try:
+                    process.kill()
+                except ProcessLookupError:
+                    pass
+                await process.wait()
+    if process.returncode != 0:
+        fail("github_rate_limited", "GitHub API 已限流，且无法读取公开仓库 HEAD；请稍后重试或配置 Token。", 429)
+    lines = output.decode("ascii", errors="replace").splitlines()
+    branch_refs = [line for line in lines if re.fullmatch(r"ref: refs/heads/[^\t]+\tHEAD", line)]
+    head_shas = [line.removesuffix("\tHEAD").lower() for line in lines if line.endswith("\tHEAD") and not line.startswith("ref: ")]
+    if len(branch_refs) != 1 or len(head_shas) != 1 or not SHA_PATTERN.fullmatch(head_shas[0]):
+        fail("github_invalid_response", "GitHub 公开仓库 HEAD 未返回有效的默认分支和 40 位 Commit。", 502)
+    return head_shas[0]
 
 
 def _unsafe(message: str = "GitHub 归档包含越界路径、链接或不受支持的特殊文件。") -> None:
@@ -289,14 +343,20 @@ class GitHubImporter:
                     async with httpx.AsyncClient(headers=headers, timeout=timeout, follow_redirects=False,
                                                  trust_env=False, transport=self.transport) as client:
                         base = f"https://api.github.com/repos/{quote(repository.owner, safe='')}/{quote(repository.repo, safe='')}"
-                        metadata = (await self.request(client, base)).json()
-                        if metadata.get("private") is True or not metadata.get("default_branch"):
-                            fail("github_repository_not_found", "只支持无需登录即可读取的公开 GitHub 仓库。", 404)
-                        branch = quote(str(metadata["default_branch"]), safe="")
-                        commit_data = (await self.request(client, f"{base}/commits/{branch}")).json()
-                        commit = str(commit_data.get("sha", "")).lower()
-                        if not SHA_PATTERN.fullmatch(commit):
-                            fail("github_invalid_response", "GitHub 未返回可固定的 40 位 Commit。", 502)
+                        try:
+                            metadata = (await self.request(client, base)).json()
+                            if metadata.get("private") is True or not metadata.get("default_branch"):
+                                fail("github_repository_not_found", "只支持无需登录即可读取的公开 GitHub 仓库。", 404)
+                            branch = quote(str(metadata["default_branch"]), safe="")
+                            commit_data = (await self.request(client, f"{base}/commits/{branch}")).json()
+                            commit = str(commit_data.get("sha", "")).lower()
+                            if not SHA_PATTERN.fullmatch(commit):
+                                fail("github_invalid_response", "GitHub 未返回可固定的 40 位 Commit。", 502)
+                        except HTTPException as error:
+                            detail = error.detail if isinstance(error.detail, dict) else {}
+                            if detail.get("code") != "github_rate_limited":
+                                raise
+                            commit = await resolve_public_head(repository)
                         self.update(job_id, commit_sha=commit, progress=25)
                         cached = get_cached_github_snapshot(self.settings.database, repository.repository_key, commit)
                         if cached:

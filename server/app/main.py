@@ -20,6 +20,7 @@ from .repository import get_project, list_projects
 from .importer import ImportRequest, ImportResult, import_project
 from .request_limits import ImportBodyLimit, ORIGINS
 from .source import SourceSlice, read_source
+from .architecture import ArchitectureMap, read_architecture
 from .runner import Runner
 from .run_api import routes
 from .github_importer import GitHubImporter, GitHubImportJob, GitHubImportRequest
@@ -82,6 +83,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     def source(snapshot_id: UUID, path: str, start: Annotated[int, Query(ge=1)] = 1,
                limit: Annotated[int, Query(ge=1, le=200)] = 80) -> SourceSlice:
         return read_source(settings, str(snapshot_id), path, start, limit)
+
+    @app.get("/api/snapshots/{snapshot_id}/architecture", response_model=ArchitectureMap)
+    def architecture(snapshot_id: UUID) -> ArchitectureMap:
+        return read_architecture(settings, snapshot_id)
 
     @app.get("/api/health", response_model=Health, responses={503: {"description": "Database unavailable"}})
     def health() -> Health:
