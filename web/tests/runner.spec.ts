@@ -11,6 +11,8 @@ async function openProject(page: Page) {
   expect(response.status()).toBe(201)
   const detail = (await response.json()).detail
   await page.goto(`/#/projects/${detail.project.id}`)
+  await page.locator(".snapshot-legacy > summary").click()
+  await page.getByRole("button", { name: /运行此项目的分析任务/ }).click()
   await expect(page.getByRole('button', { name: '启动替身任务' })).toBeEnabled()
 }
 async function capture(page: Page, info: TestInfo, name: string) {
@@ -51,6 +53,8 @@ test('任务表单、成功产物、安全 Markdown、下载和刷新重开', as
   const download = await downloadPromise
   expect(download.suggestedFilename()).toBe('repolens-artifact.md')
   await page.reload()
+  await page.locator(".snapshot-legacy > summary").click()
+  await page.getByRole("button", { name: /运行此项目的分析任务/ }).click()
   await expect(page.getByRole('status')).toContainText('替身完成')
   // New form defaults must not alter historical parameters or results.
   await page.getByLabel('任务语言').selectOption('zh')
@@ -78,6 +82,8 @@ test('失败、取消和历史任务保持终态', async ({ page }, info) => {
   await expect(page.getByRole('button', { name: '查看替身结果' })).toHaveCount(0)
   await capture(page, info, 'task-cancelled.png')
   await page.reload()
+  await page.locator(".snapshot-legacy > summary").click()
+  await page.getByRole("button", { name: /运行此项目的分析任务/ }).click()
   await expect(page.getByRole('status')).toContainText('已取消')
   await page.getByLabel('运行历史').selectOption(failedId)
   await expect(page.getByRole('status')).toContainText('任务失败')
@@ -85,8 +91,13 @@ test('失败、取消和历史任务保持终态', async ({ page }, info) => {
 })
 
 test('真实模式缺少密钥时禁用启动并支持重新读取配置', async ({ page }, info) => {
-  // Only configuration is simulated; no model request is made by this browser test.
+  // Isolate missing-key behavior from the optional worker installation; no model request is made.
   let reads = 0, creates = 0
+  await page.route('**/api/recipes', async route => {
+    const response = await route.fetch()
+    const data = await response.json()
+    await route.fulfill({ json: { ...data, items: data.items.map((item: Record<string, unknown>) => ({ ...item, environment: { ready: true }, ready: true, unavailable_reasons: [] })) } })
+  })
   page.on('request', request => { if (request.method() === 'POST' && request.url().endsWith('/api/runs')) creates++ })
   await page.route('**/api/runner', route => {
     reads++
@@ -97,6 +108,8 @@ test('真实模式缺少密钥时禁用启动并支持重新读取配置', async
   expect(response.status()).toBe(201)
   const detail = (await response.json()).detail
   await page.goto(`/#/projects/${detail.project.id}`)
+  await page.locator(".snapshot-legacy > summary").click()
+  await page.getByRole("button", { name: /运行此项目的分析任务/ }).click()
   await page.getByLabel('运行模式', { exact: true }).selectOption('pocketflow')
   await expect(page.getByText('真实运行 · 调用模型')).toBeVisible()
   await expect(page.getByLabel('分析范围', { exact: true })).toHaveValue('utils')

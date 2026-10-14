@@ -25,6 +25,7 @@ from .runner import Runner
 from .run_api import routes
 from .github_importer import GitHubImporter, GitHubImportJob, GitHubImportRequest
 from .import_policy import fail
+from .online import OnlineExplorer, routes as online_routes
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -49,6 +50,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                     await runner.close()
 
     app = FastAPI(title="RepoLens API", version="0.6.0", lifespan=lifespan)
+    app.state.online_explorer = OnlineExplorer()
+    app.include_router(online_routes(app.state.online_explorer))
     app.state.runner = runner
     app.state.github_importer = github_importer
     app.include_router(routes(settings, runner))

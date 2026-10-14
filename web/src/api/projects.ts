@@ -8,6 +8,7 @@ export interface ArchitectureModule {
   kind: 'entry' | 'interface' | 'core' | 'data' | 'support' | 'docs' | 'tests' | 'other';
   paths: string[]; evidence: ArchitectureEvidence[];
   confidence: 'observed' | 'inferred' | 'unknown'; file_count: number;
+  contracts?: { symbol: string; line_start: number; signature: string; returns: string[]; description: string | null }[];
 }
 export interface ArchitectureConnection {
   from_id: string; to_id: string; kind: 'imports' | 'contains' | 'references';

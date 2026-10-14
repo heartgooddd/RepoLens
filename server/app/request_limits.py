@@ -14,7 +14,7 @@ class ImportBodyLimit:
         self.app = app
 
     async def __call__(self, scope, receive, send):
-        if scope["type"] != "http" or scope["method"] != "POST" or not (scope["path"] in ("/api/projects/import", "/api/runs") or (scope["path"].startswith("/api/runs/") and scope["path"].endswith("/cancel"))):
+        if scope["type"] != "http" or scope["method"] != "POST" or not (scope["path"] in ("/api/projects/import", "/api/runs", "/api/online", "/api/github-imports") or scope["path"].startswith("/api/online/") or (scope["path"].startswith("/api/runs/") and scope["path"].endswith("/cancel"))):
             return await self.app(scope, receive, send)
         headers = dict(scope["headers"])
 

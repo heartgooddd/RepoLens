@@ -4,6 +4,8 @@ test('已登记配方从服务端生成表单并用离线模型完成运行', as
   const response = await page.request.post('/api/projects/import', {data:{source:'builtin'}})
   const detail = (await response.json()).detail
   await page.goto(`/#/projects/${detail.project.id}`)
+  await page.locator(".snapshot-legacy > summary").click()
+  await page.getByRole("button", { name: /运行此项目的分析任务/ }).click()
   await expect(page.getByLabel('已登记操作')).toBeVisible()
   await expect(page.getByText('pocketflow-tutorial@1', {exact:true})).toBeVisible()
   await page.getByLabel('运行模式', {exact:true}).selectOption('pocketflow')
@@ -23,6 +25,8 @@ test('已登记配方从服务端生成表单并用离线模型完成运行', as
   await expect(page.getByRole('article',{name:'生成 Markdown 预览'})).toContainText('固定测试概要')
   await page.screenshot({path:info.outputPath('recipe-offline-result.png'),fullPage:true})
   await page.reload()
+  await page.locator(".snapshot-legacy > summary").click()
+  await page.getByRole("button", { name: /运行此项目的分析任务/ }).click()
   await expect(page.getByRole('status')).toContainText('真实生成完成')
   expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true)
 })
@@ -32,6 +36,8 @@ test('配方服务失败时禁止启动，重新读取可恢复表单', async ({
   const detail = (await response.json()).detail
   await page.route('**/api/recipes', route=>route.fulfill({status:503,json:{detail:{message:'配方服务暂不可用'}}}))
   await page.goto(`/#/projects/${detail.project.id}`)
+  await page.locator(".snapshot-legacy > summary").click()
+  await page.getByRole("button", { name: /运行此项目的分析任务/ }).click()
   await expect(page.getByRole('alert')).toContainText('配方服务暂不可用')
   await expect(page.getByRole('button',{name:'启动真实任务'})).toHaveCount(0)
   await page.unroute('**/api/recipes')

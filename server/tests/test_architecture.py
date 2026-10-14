@@ -91,7 +91,7 @@ def test_nested_web_manifest_and_html_module_identify_real_frontend_entry():
     assert modules["file:web/src/library.ts"].kind == "entry"
     assert modules["file:web/vite.config.ts"].kind == "support"
     assert not any(module.id == "file:web/src/legacy.js" and module.kind == "entry" for module in result.modules)
-    assert "file:web/src/ghost.ts" not in modules
+    assert modules["file:web/src/ghost.ts"].kind != "entry"  # Loaded files remain inspectable even without references.
     assert "file:evil.ts" in modules and modules["file:evil.ts"].kind != "entry"
     references = {(edge.from_id, edge.to_id, edge.label): edge for edge in result.connections
                   if edge.kind == "references"}
@@ -154,3 +154,19 @@ def test_architecture_api_uses_registered_hash_verified_snapshot(settings):
         changed = client.get(f"/api/snapshots/{snapshot['id']}/architecture")
         assert changed.status_code == 409
         assert changed.json()["detail"]["code"] == "snapshot_changed"
+
+
+def test_function_contracts_keep_nested_returns_separate_and_do_not_execute():
+    result = build_architecture(uuid4(), 'Contracts', {'src/core.py': '''def outer(value: str):
+    """Normalize a value."""
+    def inner():
+        return "nested-only"
+    return value.strip()
+''', 'ui/App.tsx': 'export const App = () => null'})
+    module = next(item for item in result.modules if item.id == 'file:src/core.py')
+    outer, inner = module.contracts
+    assert outer.signature == 'outer(value: str)'
+    assert outer.returns == ['return value.strip()']
+    assert outer.description == 'Normalize a value.'
+    assert inner.returns == ['return "nested-only"']
+    assert not next(item for item in result.modules if item.id == 'file:ui/App.tsx').contracts

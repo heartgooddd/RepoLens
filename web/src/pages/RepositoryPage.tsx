@@ -1,5 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { architecture as getArchitecture, project, source } from '../api/projects'
+import { RepositoryExplorer } from '../components/RepositoryExplorer'
 import { TaskPanel } from '../components/TaskPanel'
 import { TaskResult } from '../components/TaskResult'
 import { DemoFolderVisual, DemoOverview, SnapshotFolderVisual, SnapshotOverview } from '../components/ProjectVisuals'
@@ -27,7 +28,7 @@ export function RepositoryPage({ id }: { id: string }) {
 function RepositoryWorkspace({ detail }: { detail: Detail }) {
   const [snapshotId, setSnapshotId] = useState(detail.snapshots[0]?.id)
   const snapshot = detail.snapshots.find(item => item.id === snapshotId)
-  return <main className="wrap" id="main-content" tabIndex={-1}>
+  return <main className="explorer-page" id="main-content" tabIndex={-1}>
     <div className="page-heading">
       <div><div className="eyebrow">PROJECT WORKSPACE / SOURCE</div></div>
       <div className="source-pill"><span className="dot" /><strong>真实快照</strong><span>· {snapshot?.commit_sha?.slice(0, 7) || snapshot?.revision.slice(7, 15)}</span></div>
@@ -38,8 +39,28 @@ function RepositoryWorkspace({ detail }: { detail: Detail }) {
       <div><strong>固定 Commit</strong><code>{snapshot.commit_sha}</code></div>
       <p>地图扫描与运行分析共用此快照；再次导入同一 Commit 会复用源码快照，模型结果另按模型与参数隔离。</p>
     </section>}
-    {snapshot ? <SnapshotWorkspace key={snapshot.id} snapshot={snapshot} name={detail.project.name} sourceType={detail.project.source_type} sourceLabel={detail.project.source_label} /> : <p className="muted">此项目尚无源码快照，请返回输入页重新导入。</p>}
+    {snapshot ? <VisualSnapshot key={snapshot.id} snapshot={snapshot} name={detail.project.name} sourceType={detail.project.source_type} sourceLabel={detail.project.source_label} /> : <p className="muted">此项目尚无源码快照，请返回输入页重新导入。</p>}
   </main>
+}
+
+function VisualSnapshot(props: { snapshot: Snapshot; name: string; sourceType: string; sourceLabel: string }) {
+  const [legacyOpen, setLegacyOpen] = useState(false)
+  const [map, setMap] = useState<Architecture>()
+  const [mapError, setMapError] = useState('')
+  const [retry, setRetry] = useState(0)
+  useEffect(() => {
+    const controller = new AbortController()
+    setMapError('')
+    getArchitecture(props.snapshot.id, controller.signal).then(setMap).catch(reason => { if (!controller.signal.aborted) setMapError(reason.message) })
+    return () => controller.abort()
+  }, [props.snapshot.id, retry])
+  const loadSource = useCallback((path: string, start: number, signal: AbortSignal) => source(props.snapshot.id, path, start, signal), [props.snapshot.id])
+  return <>
+    <RepositoryExplorer name={props.name} files={props.snapshot.files.map(file => ({ ...file, loaded: true }))} architecture={map}
+      repositoryUrl={props.sourceType === 'github' ? props.sourceLabel : undefined} commit={props.snapshot.commit_sha || undefined} error={mapError} loadSource={loadSource} />
+    {mapError && <button className="secondary" onClick={() => setRetry(value => value + 1)}>重试架构分析</button>}
+    <details className="snapshot-legacy" onToggle={event => setLegacyOpen(event.currentTarget.open)}><summary>快照详情与运行 · 打开原工作台</summary>{legacyOpen && <SnapshotWorkspace {...props} />}</details>
+  </>
 }
 
 function SnapshotWorkspace({ snapshot, name, sourceType, sourceLabel }: { snapshot: Snapshot; name: string; sourceType: string; sourceLabel: string }) {

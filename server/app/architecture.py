@@ -32,6 +32,14 @@ class ArchitectureEvidence(Record):
     excerpt: str
 
 
+class FunctionContract(Record):
+    symbol: str
+    line_start: int
+    signature: str
+    returns: list[str]
+    description: str | None = None
+
+
 class ArchitectureModule(Record):
     id: str
     title: str
@@ -41,6 +49,7 @@ class ArchitectureModule(Record):
     evidence: list[ArchitectureEvidence]
     confidence: Literal["observed", "inferred", "unknown"]
     file_count: int
+    contracts: list[FunctionContract] = Field(default_factory=list)
 
 
 class ArchitectureConnection(Record):
@@ -407,6 +416,35 @@ def _definitions(path: str, text: str) -> list[tuple[str, ArchitectureEvidence]]
     return result
 
 
+def function_contracts(path: str, text: str) -> list[FunctionContract]:
+    """Observed Python signatures/return expressions, never inferred runtime values."""
+    if not path.endswith('.py'):
+        return []
+    try:
+        tree = ast.parse(text)
+        functions = sorted((node for node in ast.walk(tree)
+                            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))), key=lambda node: node.lineno)
+        result = []
+        for node in functions[:12]:
+            returns = []
+            pending = list(reversed(node.body))
+            while pending:
+                child = pending.pop()
+                if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef, ast.Lambda)):
+                    continue
+                if isinstance(child, ast.Return):
+                    value = ast.get_source_segment(text, child) or 'return'
+                    returns.append(value[:180] + (" …" if len(value) > 180 else ""))
+                pending.extend(reversed(list(ast.iter_child_nodes(child))))
+            result.append(FunctionContract(symbol=node.name, line_start=node.lineno,
+                          signature=f"{node.name}({ast.unparse(node.args)})"[:240],
+                          returns=list(dict.fromkeys(returns))[:3],
+                          description=(ast.get_docstring(node) or '')[:240] or None))
+        return result
+    except (SyntaxError, ValueError, RecursionError):
+        return []
+
+
 def build_architecture(snapshot_id: UUID | str, project_name: str, files: dict[str, str]) -> ArchitectureMap:
     """Pure transformation; callers supply only hash-verified snapshot text."""
     summary, summary_source = _summary(files)
@@ -429,6 +467,7 @@ def build_architecture(snapshot_id: UUID | str, project_name: str, files: dict[s
     separate_files = {path for path in root_files if PurePosixPath(path).suffix.lower() in SOURCE_SUFFIXES
                       or path.lower() in MANIFEST_NAMES or path.lower().startswith("readme")}
     separate_files |= entry_files
+    separate_files |= {path for path in paths if PurePosixPath(path).suffix.lower() in SOURCE_SUFFIXES}
     separate_files |= {path for ref in references for path in (ref.source, ref.target)}
     separate_files |= {path for source, target, _ in imports for path in (source, target)}
     direct_files: dict[str, list[str]] = defaultdict(list)
@@ -492,7 +531,7 @@ def build_architecture(snapshot_id: UUID | str, project_name: str, files: dict[s
         if not evidence and first:
             evidence.append(_evidence(path, *first))
         modules.append(ArchitectureModule(id=f"file:{path}", title=path, role=role, kind=kind,
-                                          paths=[path], evidence=evidence, confidence=confidence, file_count=1))
+                                          paths=[path], evidence=evidence, confidence=confidence, file_count=1, contracts=function_contracts(path, text)))
 
     connections: list[ArchitectureConnection] = []
     for folder in sorted(folders):

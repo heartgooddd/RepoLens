@@ -245,3 +245,7 @@ curl 'http://127.0.0.1:8000/api/projects?limit=20&offset=0'
 完整字段、模式限制、价格／调用上限见 [任务说明](../docs/07-task-runner.md)；本机模型配置见 [OpenRouter 设置](../docs/08-openrouter-setup.md)。默认模式 `stub`，开启 `REPOLENS_ENABLE_REAL_RUN=1` 后允许请求 `mode=pocketflow`，仅固定上游快照 utils、中文、最多3主题。API不接受浏览器传入密钥或模型地址。`GET /api/runner` 返回配置布尔状态，不回传密钥。
 
 迁移当前版本6，旧记录的配方身份、参数JSON与隔离字段可空。新增 `GET /api/recipes`，新页面向 `POST /api/runs` 提交 `recipe_id/snapshot_id/parameters`；旧真实请求映射到同一受沙箱约束配方。结果缓存包含snapshot_id、配方ID/版本/所有参数、模型与提示词；复用前重验产物。模拟模型验证使用假密钥和MockTransport，不消耗模型额度。真实证据见 [M3](../evidence/m3/acceptance.md)，最新记录见 [M5](../evidence/m5/acceptance.md)。
+
+## 在线可视化 API
+
+`POST /api/online` 创建固定 Commit 的目录会话；`POST /api/online/{id}/read` 分批读取选定 blob；`GET /api/online/{id}` 返回目录/已读覆盖/架构；`GET /api/online/{id}/source` 返回校验后的源码切片。在线文本只在受限内存暂存，不创建数据库快照。公开 GitHub Token 读取自 `REPOLENS_GITHUB_TOKEN` 服务环境。完整上限、过滤、过期策略和测试命令见 [在线工作台](../docs/11-online-visual-explorer.md)。
