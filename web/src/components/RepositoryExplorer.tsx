@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { Architecture, ArchitectureConnection, ArchitectureEvidence, ArchitectureModule, SourceSlice } from '../api/projects'
 import type { ExplorerFile } from '../api/online'
+import { ProjectOverview } from './ProjectOverview'
+import { modulePath, projectOverview } from './project-overview'
 import './repository-explorer.css'
 
 type Props = {
@@ -124,6 +126,9 @@ export function RepositoryExplorer({ name, files, architecture, repositoryUrl, c
   const modules = useMemo(() => architecture?.modules.filter(module => module.id.startsWith('file:')) || [], [architecture])
   const links = useMemo(() => architecture?.connections.filter(link => link.kind !== 'contains') || [], [architecture])
   const modulesByPath = useMemo(() => new Map(modules.map(module => [module.paths[0], module])), [modules])
+  const overview = useMemo(() => projectOverview(files, links), [files, links])
+  const [moduleId, setModuleId] = useState('')
+  const activeModule = overview.modules.find(module => module.id === moduleId)
   const treeScroll = useRef<HTMLDivElement>(null)
   const [selected, setSelected] = useState('')
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set(['web', 'web/src', 'web/src/pages', 'web/src/api', 'server', 'server/app', 'src']))
@@ -156,6 +161,7 @@ export function RepositoryExplorer({ name, files, architecture, repositoryUrl, c
 
   function select(path: string, stop = true) {
     if (stop) setPlaying(false)
+    setModuleId(overview.byPath.get(path) || '')
     setSelected(path); setContractIndex(0); setSourceStart(1); setEdgeEvidence(undefined); setSourceOpen(false)
     setExpanded(previous => {
       const next = new Set(previous), parts = path.split('/')
@@ -163,9 +169,9 @@ export function RepositoryExplorer({ name, files, architecture, repositoryUrl, c
       return next
     })
   }
-  useEffect(() => {
-    if (!selected && roots.length) select(roots[0].paths[0])
-  }, [roots, selected])
+  function showModule(id = '') {
+    setModuleId(id); setSelected(''); setPlaying(false); setSourceOpen(false); setEdgeEvidence(undefined)
+  }
   useEffect(() => {
     if (!playing || busy || trail.length < 2) return
     if (activeIndex === trail.length - 1) { setPlaying(false); return }
@@ -210,6 +216,12 @@ export function RepositoryExplorer({ name, files, architecture, repositoryUrl, c
     </div>
     {error && <p className="rx-error" role="alert">{error}</p>}
     {warnings.map((warning, i) => <p className="rx-notice" role="status" key={i}>{warning}</p>)}
+    <nav className="rx-navigation" aria-label="可视化层级">
+      <button type="button" aria-current={!selected && !activeModule ? 'page' : undefined} onClick={() => showModule()}>项目总览</button>
+      <span aria-hidden="true">/</span>{activeModule ? <button type="button" aria-current={!selected ? 'page' : undefined} onClick={() => showModule(activeModule.id)}>{activeModule.title} · {modulePath(activeModule)}</button> : <span>选择模块，展开文件</span>}
+      {selected && <><span aria-hidden="true">/</span><span aria-current="page">{basename(selected)}</span></>}
+      {(selected || activeModule) && <button type="button" className="rx-back-overview" onClick={() => showModule()}>↖ 返回整体总图</button>}
+    </nav>
     <div className="rx-columns">
       <aside className="rx-panel rx-file-panel" aria-label="项目文件结构"><div className="rx-panel-title"><h2><span>01</span> 文件结构</h2><span>{files.length}</span></div>
         <label className="rx-search"><span className="sr-only">查找文件</span><input type="search" value={filter} onChange={event => setFilter(event.target.value)} placeholder="查找文件或目录…" /></label>
@@ -218,7 +230,8 @@ export function RepositoryExplorer({ name, files, architecture, repositoryUrl, c
         </div>
         <div className="rx-tree-footer"><span><i className="rx-read-dot loaded" /> 已读取</span><span><i className="rx-read-dot" /> 未读取</span><p>仅列出可读文本。{excludedCount > 0 ? `已排除 ${excludedCount} 个资源或不支持的文件。` : ''}</p></div>
       </aside>
-      <section className="rx-panel rx-map-panel" aria-label="模块协作图"><div className="rx-panel-title"><h2><span>02</span> 模块如何协作</h2><span className="rx-badge">源码依据</span></div>
+      {!selected ? <ProjectOverview name={name} modules={overview.modules} links={overview.links} active={activeModule} chooseModule={showModule} chooseFile={select} inspect={inspect} /> : <>
+      <section className="rx-panel rx-map-panel" aria-label="模块协作图"><div className="rx-panel-title"><h2><span>03</span> 单文件引用分析</h2><span className="rx-badge">源码依据</span></div>
         <div className="rx-map-intro"><h3>{focus ? basename(selected) : '项目引用关系'}</h3><p>{selected && !focus ? '这个文件还没有可展示的关系，读取后可继续查看。' : '选择文件查看上下游，点击关系可核对源码。'}</p></div>
         <RelationGraph focus={focus} modules={modules} links={links} choose={select} inspect={inspect} />
       </section>
@@ -246,9 +259,9 @@ export function RepositoryExplorer({ name, files, architecture, repositoryUrl, c
           </section>}
           {githubPath && <a className="rx-source-link" href={githubPath + (edgeEvidence ? `#L${edgeEvidence.line_start}` : '')} target="_blank" rel="noreferrer">在 GitHub 核对固定版本 ↗</a>}
         </> : <div className="rx-inspector-empty">从左侧选择一个文件，查看职责、引用关系和源码。</div>}
-      </aside>
+      </aside></>}
     </div>
-    <section className="rx-playback rx-panel" aria-label="源码路径推演"><div className="rx-playback-heading"><h2><span>03</span> 跟着源码走一遍</h2>
+    {selected && <section className="rx-playback rx-panel" aria-label="源码路径推演"><div className="rx-playback-heading"><h2><span>03</span> 跟着源码走一遍</h2>
       <label>追踪起点 <select value={root || roots[0]?.id || ''} disabled={!roots.length} onChange={event => { setRoot(event.target.value); select(event.target.value.slice(5)) }}>
         {!roots.length && <option value="">等待源码分析</option>}{roots.map(module => <option key={module.id} value={module.id}>{module.paths[0]}</option>)}
       </select></label><span className="rx-badge">静态引用路径 · 未实际运行</span>
@@ -257,7 +270,7 @@ export function RepositoryExplorer({ name, files, architecture, repositoryUrl, c
       <div className="rx-playback-footer"><p aria-live="polite">{trail.length < 2 ? '当前没有可继续追踪的已解析引用。可选择其他文件或继续分析。' : activeIndex >= 0 ? `第 ${activeIndex + 1} / ${trail.length} 步 · ${selected}` : '选择步骤，联动查看文件与关系。'}<small>一条阅读分支，最多 6 步；不代表完整调用链或数据流。</small></p>
         <div><button type="button" className="rx-button rx-button-primary" disabled={trail.length < 2 || busy} onClick={() => { if (!playing && (activeIndex < 0 || activeIndex === trail.length - 1)) select(trail[0].slice(5)); setPlaying(value => !value) }}>{playing ? 'Ⅱ 暂停' : '▶ 播放路径'}</button><button type="button" className="rx-button" disabled={!trail.length || activeIndex === trail.length - 1 || busy} onClick={() => select(trail[Math.max(0, activeIndex + 1)].slice(5))}>下一步 →</button></div>
       </div>
-    </section>
+    </section>}
     <p className="rx-footnote">{online ? '源码仅在服务内存中暂存，空闲 30 分钟后过期；不下载归档，不写入本地快照。' : '分析来自已保存快照。'} 当前支持 Python、JavaScript / TypeScript 的部分静态引用；未解析部分不补造连线。</p>
   </div>
 }
