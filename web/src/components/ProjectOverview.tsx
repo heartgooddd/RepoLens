@@ -19,8 +19,8 @@ export function ProjectOverview({ name, modules, links, active, chooseModule, ch
   useEffect(() => { setQuery('') }, [active?.id])
   const visible = showAll ? modules : modules.slice(0, 18)
   const lanes = [0, 1, 2].map(lane => visible.filter(module => module.lane === lane))
-  const nodeWidth = (width - 140) / 3, height = Math.max(340, Math.max(...lanes.map((lane, column) => lane.length * (column === 2 ? 80 : 152))) + 65)
-  const positions = new Map(lanes.flatMap((lane, column) => lane.map((module, row) => [module.id, { x: 24 + column * (nodeWidth + 46), y: 58 + row * (column === 2 ? 80 : 152) }] as const)))
+  const nodeWidth = (width - 72) / 3, height = Math.max(340, Math.max(...lanes.map((lane, column) => lane.length * (column === 2 ? 80 : 152))) + 65)
+  const positions = new Map(lanes.flatMap((lane, column) => lane.map((module, row) => [module.id, { x: 12 + column * (nodeWidth + 24), y: 58 + row * (column === 2 ? 80 : 152) }] as const)))
   const connected = new Set(links.filter(link => link.from === active?.id || link.to === active?.id).flatMap(link => [link.from, link.to]))
   const relevant = active ? links.filter(link => link.from === active.id || link.to === active.id) : links
   const matchingFiles = active?.files.filter(file => file.path.toLowerCase().includes(query.toLowerCase())) || []
@@ -42,7 +42,7 @@ export function ProjectOverview({ name, modules, links, active, chooseModule, ch
       <div className="rx-overview-stats"><strong>{active ? active.files.length : modules.reduce((sum, module) => sum + module.files.length, 0)}</strong><span>{active ? '模块内文件' : '可读文件'}</span><strong>{relevant.length}</strong><span>跨模块关系</span></div>
     </div>
     {active && detail}
-    <div className="rx-overview-scroll" tabIndex={0} aria-label="模块地图，可横向滚动"><div className="rx-overview-canvas" ref={host} style={{ height }}>
+    <div className="rx-overview-scroll" tabIndex={0} aria-label="模块地图，可横向滚动"><div className={`rx-overview-canvas${width < 700 ? " is-compact" : ""}`} ref={host} style={{ height }}>
       <div className="rx-overview-lanes"><span>入口与界面</span><span>逻辑与数据</span><span>支撑与文档</span></div>
       <svg className="rx-overview-lines" width={width} height={height} aria-hidden="true"><defs><marker id={marker} viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto"><path d="M0 0 L10 5 L0 10Z" fill="#69a5a2" /></marker></defs>
         {links.map(link => {
@@ -50,7 +50,7 @@ export function ProjectOverview({ name, modules, links, active, chooseModule, ch
           if (!a || !b) return null
           const sameColumn = a.x === b.x, forward = b.x > a.x
           const ax = a.x + (sameColumn || forward ? nodeWidth : 0), bx = b.x + (sameColumn || !forward ? nodeWidth : 0)
-          const ay = a.y + (byId.get(link.from)!.lane === 2 ? 32 : 64), by = b.y + (byId.get(link.to)!.lane === 2 ? 32 : 64), bend = sameColumn ? ax + 28 : (ax + bx) / 2
+          const ay = a.y + (byId.get(link.from)!.lane === 2 ? 32 : 64), by = b.y + (byId.get(link.to)!.lane === 2 ? 32 : 64), bend = sameColumn ? ax + 18 : (ax + bx) / 2
           return <path key={JSON.stringify([link.from, link.to])} d={`M${ax} ${ay} C${bend} ${ay},${bend} ${by},${bx} ${by}`} markerEnd={`url(#${marker})`} opacity={active && link.from !== active.id && link.to !== active.id ? .12 : .85} />
         })}
       </svg>
